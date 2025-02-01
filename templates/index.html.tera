@@ -10,6 +10,7 @@
         <section class="gameday">
             {% for tick in ticks %}
             <section class="tick">
+                <h2 class="right-matter">{{ tick.tick_timestamp }}</h2>
                 <h1>Tick {{ tick.tick_index }}: {{ tick.time_since_start }}</h1>
                 {% if tick.errors %}
                 <ul class="tick-errors">

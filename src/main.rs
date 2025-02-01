@@ -5,7 +5,7 @@ mod event_parser;
 mod game_log;
 
 use crate::engine::RollConstrains;
-use chrono::TimeDelta;
+use chrono::{DateTime, TimeDelta, Utc};
 use chrono_humanize::{Accuracy, HumanTime, Tense};
 use itertools::Itertools;
 use rocket::{response, Request, Response};
@@ -84,6 +84,7 @@ fn index() -> Result<Template, DesimError> {
     #[derive(Serialize)]
     struct TickContext {
         tick_index: usize,
+        tick_timestamp: DateTime<Utc>,
         time_since_start: String,
         errors: Vec<String>,
         warnings: Vec<String>,
@@ -164,6 +165,7 @@ fn index() -> Result<Template, DesimError> {
 
             TickContext {
                 tick_index: i,
+                tick_timestamp,
                 time_since_start: time_since_start_display,
                 errors,
                 warnings,
