@@ -5,6 +5,10 @@ use uuid::Uuid;
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GameEventData {
+    pub season: i64,
+    pub day: i64,
+    pub away_team_nickname: String,
+    pub home_team_nickname: String,
     pub last_update: String,
 }
 

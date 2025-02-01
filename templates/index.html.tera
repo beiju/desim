@@ -1,0 +1,46 @@
+<!doctype html>
+<html>
+    <head>
+        <title>Desim — S{{ season + 1 }}D{{ day + 1 }}</title>
+
+        <link rel="stylesheet" href="/static/style.css" />
+    </head>
+    <body>
+        <h1 class="page-title">Desim — S{{ season + 1 }}D{{ day + 1 }}</h1>
+        <section class="gameday">
+            {% for tick in ticks %}
+            <section class="tick">
+                <h1>Tick {{ tick.tick_index }}: {{ tick.time_since_start }}</h1>
+                {% if tick.errors %}
+                <ul class="tick-errors">
+                    {% for error in tick.errors %}
+                    <li class="tick-error">
+                        <p>{{ error }}</p>
+                    </li>
+                    {% endfor %}
+                </ul>
+                {%  endif %}
+                {% if tick.warnings %}
+                <ul class="tick-warnings">
+                    {% for warning in tick.warnings %}
+                    <li class="tick-warning">
+                        <p>{{ warning }}</p>
+                    </li>
+                    {% endfor %}
+                </ul>
+                {%  endif %}
+                {% if tick.events %}
+                <ul class="tick-events">
+                    {% for event in tick.events %}
+                    <li class="tick-event">
+                        <h2>{{ event.game_label }}</h2>
+                        <p>{{ event.description }}</p>
+                    </li>
+                    {% endfor %}
+                </ul>
+                {%  endif %}
+            </section>
+            {% endfor %}
+        </section>
+    </body>
+</html>

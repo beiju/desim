@@ -1,0 +1,82 @@
+body {
+    color: #ededed;
+    background: #0d0d0d;
+    font-family: Verdana, Geneva, Tahoma, sans-serif;
+    max-width: 800px;
+    margin: auto;
+    text-shadow: rgba(0, 0, 0, 1) 0 1px 2px;
+}
+
+.page-title {
+    text-align: center;
+    font-weight: normal;
+}
+
+.gameday {
+    background: rgba(0, 0, 0, 0.5);
+    border: 1px solid black;
+}
+
+.gameday h1 {
+    margin: 0;
+    background: #202020;
+    font-size: 1em;
+    font-weight: normal;
+    padding: 5px 8px;
+    border-bottom: 1px solid black;
+    border-left: 5px solid #5e5e5e;
+}
+
+.tick-errors, .tick-warnings, .tick-events {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    border-bottom: 1px solid black;
+}
+
+.tick-error, .tick-warning {
+    margin: 0;
+    padding: 5px 8px;
+    border-left: 5px solid transparent;
+}
+
+.tick-error p, .tick-warning p {
+    margin: 0;
+}
+
+.tick-error {
+    background: #3e0000;
+    border-left-color: #b50000;
+}
+
+.tick-warning {
+    background: #443d00;
+    border-left-color: #b5a100;
+}
+
+.tick-event {
+    margin-left: 1em;
+    background: #393939;
+    color: #cecece;
+}
+
+.tick-event > * {
+    margin: 0;
+}
+
+.tick-event h2 {
+    font-size: 0.85em;
+    font-variant: small-caps;
+    text-transform: lowercase;
+    font-weight: bold;
+    opacity: 0.6;
+    /*! margin-bottom: 6px; */
+    background: rgba(0, 0, 0, 0.5);
+    padding: 1px 6px 3px;
+    border-bottom: 1px solid black;
+}
+
+.tick-event p {
+    padding: 5px 8px;
+    font-size: 0.9em;
+}

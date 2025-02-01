@@ -1,74 +1,147 @@
+#[macro_use]
+extern crate rocket;
 mod engine;
 mod game_log;
 
 use chrono::TimeDelta;
+use chrono_humanize::{Accuracy, HumanTime, Tense};
 use itertools::Itertools;
-use log::{debug, warn};
-use std::fmt::Formatter;
+use rocket::{response, Request, Response};
+use rocket_dyn_templates::{context, Template};
+use serde::Serialize;
+use thiserror::Error;
 
 // Nominal tick duration is 5 seconds, but our timestamps are post-network-delay so there is
 // definite jitter there
 const MIN_EXPECTED_TICK_DURATION: TimeDelta = TimeDelta::seconds(3);
 
-struct PrintGameEvents<'a>(&'a [game_log::GameEvent]);
-impl<'a> std::fmt::Display for PrintGameEvents<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        for event in self.0 {
-            write!(f, "\t- {}: ", event.game_id)?;
-            let mut lines = event.data.last_update.lines();
-            if let Some(line) = lines.next() {
-                let num_lines = 1 + lines.count();
-                write!(f, "{}", line)?;
-                if num_lines > 1 {
-                    write!(f, "... ({num_lines} lines)")?;
-                }
-            } else {
-                write!(f, "(empty)")?;
-            }
+#[derive(Error, Debug)]
+pub enum DesimError {
+    #[error("Couldn't deserialize game: {0:?}")]
+    DeserializeGameFailed(serde_json::Error),
+
+    #[error("There were no game events on this day")]
+    NoGameEventsThisDay,
+}
+
+impl<'r, 'o: 'r> response::Responder<'r, 'o> for DesimError {
+    fn respond_to(self, req: &'r Request<'_>) -> response::Result<'o> {
+        #[derive(Serialize)]
+        struct ErrContext<'a> {
+            header: &'a str,
+            body: Option<String>,
         }
 
-        Ok(())
+        let context = match self {
+            DesimError::DeserializeGameFailed(err) => ErrContext {
+                header: "Failed to deserialize game",
+                body: Some(err.to_string()),
+            },
+            DesimError::NoGameEventsThisDay => ErrContext {
+                header: "No game events this day",
+                body: None,
+            },
+        };
+        let template = Template::render("error", context);
+        Response::build_from(template.respond_to(req)?).ok()
     }
 }
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    pretty_env_logger::init();
+#[get("/")]
+fn index() -> Result<Template, DesimError> {
+    let game_data = game_log::load_games().map_err(DesimError::DeserializeGameFailed)?;
 
-    let game_data = game_log::load_games()?;
     let mut all_events = game_data
         .into_iter()
         .flat_map(|game| game.data)
         .collect_vec();
     all_events.sort_by_key(|game| game.timestamp);
 
-    let start_time = all_events.first().unwrap().timestamp;
+    let first_event = all_events.first().ok_or(DesimError::NoGameEventsThisDay)?;
+    // Clone some simple data out of first_event so it can be dropped and all_events can be
+    // mutably borrowed
+    let season = first_event.data.season;
+    let day = first_event.data.day;
+    let first_event_timestamp = first_event.timestamp;
+
+    #[derive(Serialize)]
+    struct EventContext {
+        pub game_label: String,
+        pub description: String,
+    }
+
+    #[derive(Serialize)]
+    struct TickContext {
+        pub tick_index: usize,
+        pub time_since_start: String,
+        pub errors: Vec<String>,
+        pub warnings: Vec<String>,
+        pub events: Vec<EventContext>,
+    }
+
     let mut prev_tick_timestamp = None;
-    for (tick_timestamp, group) in all_events
+    let ticks = all_events
         .into_iter()
         .chunk_by(|game| game.timestamp)
         .into_iter()
-    {
-        let group = group.collect_vec();
-        assert_eq!(
-            group.iter().duplicates_by(|g| g.game_id).count(),
-            0,
-            "A tick must not contain multiple events for the same game"
-        );
+        .enumerate()
+        .map(|(i, (tick_timestamp, tick_events))| {
+            let tick_events = tick_events.collect_vec();
 
-        if let Some(prev_tick_timestamp) = prev_tick_timestamp {
-            let tick_duration = tick_timestamp - prev_tick_timestamp;
-            if tick_duration < MIN_EXPECTED_TICK_DURATION {
-                warn!("Tick duration was only {tick_duration}");
+            let time_since_start = tick_timestamp - first_event_timestamp;
+            let time_since_start_display = HumanTime::from(time_since_start).to_text_en(Accuracy::Precise, Tense::Present);
+
+            let errors = tick_events.iter()
+                .duplicates_by(|g| g.game_id)
+                .map(|duplicate| {
+                    format!("Contains multiple events for game {}", duplicate.game_id)
+                })
+                .collect_vec();
+
+            let warnings = prev_tick_timestamp
+                .and_then(|prev_tick_timestamp| {
+                    let tick_duration = tick_timestamp - prev_tick_timestamp;
+                    (tick_duration < MIN_EXPECTED_TICK_DURATION).then(|| {
+                        format!("Tick duration was only {tick_duration} (expected at least {MIN_EXPECTED_TICK_DURATION})")
+                    })
+                })
+                .into_iter()
+                .collect_vec();
+            prev_tick_timestamp = Some(tick_timestamp);
+
+            let events = tick_events.into_iter()
+                .map(|event| {
+                    EventContext {
+                        game_label: format!("{} @ {}", event.data.home_team_nickname, event.data.away_team_nickname),
+                        description: event.data.last_update,
+                    }
+                })
+                .collect_vec();
+
+            TickContext {
+                tick_index: i,
+                time_since_start: time_since_start_display,
+                errors,
+                warnings,
+                events,
             }
-        }
-        prev_tick_timestamp = Some(tick_timestamp);
+        })
+        .collect_vec();
 
-        let time_since_start = tick_timestamp - start_time;
-        debug!(
-            "Tick at {tick_timestamp} (T+{time_since_start}), with events: \n{}",
-            PrintGameEvents(&group)
-        );
-    }
+    Ok(Template::render(
+        "index",
+        context! {
+            season: season,
+            day: day,
+            ticks: ticks
+        },
+    ))
+}
 
-    Ok(())
+#[launch]
+fn rocket() -> _ {
+    rocket::build()
+        .mount("/static", rocket::fs::FileServer::from("static"))
+        .mount("/", routes![index])
+        .attach(Template::fairing())
 }
