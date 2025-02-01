@@ -5,7 +5,7 @@ mod event_parser;
 mod game_log;
 
 use crate::engine::RollConstrains;
-use chrono::{DateTime, TimeDelta, Utc};
+use chrono::{DateTime, TimeDelta, Timelike, Utc};
 use chrono_humanize::{Accuracy, HumanTime, Tense};
 use itertools::Itertools;
 use rocket::{response, Request, Response};
@@ -64,7 +64,16 @@ fn index() -> Result<Template, DesimError> {
     // mutably borrowed
     let season = first_event.data.season;
     let day = first_event.data.day;
-    let first_event_timestamp = first_event.timestamp;
+    // To get the theoretical game start, take the timestamp of the first event and zero it out
+    // to the hour mark
+    let game_start_timestamp = first_event
+        .timestamp
+        .with_nanosecond(0)
+        .unwrap()
+        .with_second(0)
+        .unwrap()
+        .with_minute(0)
+        .unwrap();
 
     #[derive(Serialize)]
     struct RollContext {
@@ -100,7 +109,7 @@ fn index() -> Result<Template, DesimError> {
         .map(|(i, (tick_timestamp, tick_events))| {
             let tick_events = tick_events.collect_vec();
 
-            let time_since_start = tick_timestamp - first_event_timestamp;
+            let time_since_start = tick_timestamp - game_start_timestamp;
             let time_since_start_display = HumanTime::from(time_since_start).to_text_en(Accuracy::Precise, Tense::Present);
 
             let errors = tick_events.iter()
