@@ -57,7 +57,10 @@
                         {% if event.rolls %}
                             <ol class="rolls">
                                 {% for roll in event.rolls %}
-                                <li class="roll {{ roll.success }}">{{ roll.description }}</li>
+                                <li class="roll {{ roll.success }}">
+                                    <p class="right-matter">{{ roll.rng_state }}</p>
+                                    {{ roll.description }} (roll {{ roll.roll }})
+                                </li>
                                 {% endfor %}
                             </ol>
                         {# Don't render the "no rolls" label if there's errors #}

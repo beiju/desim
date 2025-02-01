@@ -89,6 +89,7 @@ body {
 .tick-event p {
     padding: 5px 8px;
     font-size: 0.9em;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.5);
 }
 
 .tick-event .rolls {
@@ -110,4 +111,15 @@ body {
 .roll.trivial-success {
     background: #394a39;
     border-left: 5px solid #9d9d9d;
+}
+
+.roll {
+    border-bottom: 1px solid rgba(0, 0, 0, 0.5);
+}
+
+.roll .right-matter {
+    color: #777;
+    padding: 3px 0 0;
+    border-bottom: navajowhite;
+    font-size: 0.7em;
 }

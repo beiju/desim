@@ -28,8 +28,8 @@ fn standard_rolls() -> Vec<Roll> {
         RollConstrains::Unconstrained,
     ));
     rolls.push(Roll::new(
-        "mystery",
-        "Mystery something".to_string(),
+        "steal_fielder",
+        "Steal fielder (not necessarily used)".to_string(),
         RollConstrains::Unconstrained,
     ));
 

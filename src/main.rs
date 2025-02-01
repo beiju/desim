@@ -3,6 +3,7 @@ extern crate rocket;
 mod engine;
 mod event_parser;
 mod game_log;
+mod rng;
 
 use crate::engine::RollConstrains;
 use chrono::{DateTime, TimeDelta, Timelike, Utc};
@@ -52,6 +53,8 @@ impl<'r, 'o: 'r> response::Responder<'r, 'o> for DesimError {
 #[get("/")]
 fn index() -> Result<Template, DesimError> {
     let game_data = game_log::load_games().map_err(DesimError::DeserializeGameFailed)?;
+    let xs128p_state = (6293080272763260934, 11654195519702723052);
+    let mut rng = rng::Rng::new(xs128p_state, 59);
 
     let mut all_events = game_data
         .into_iter()
@@ -78,7 +81,9 @@ fn index() -> Result<Template, DesimError> {
     #[derive(Serialize)]
     struct RollContext {
         success: &'static str,
+        rng_state: String,
         description: String,
+        roll: f64,
     }
 
     #[derive(Serialize)]
@@ -138,12 +143,17 @@ fn index() -> Result<Template, DesimError> {
                         Ok(event) => {
                             let rolls = engine::rolls_for_event(&event).into_iter()
                                 .map(|roll| {
+                                    let rng_state_str = format!("({}, {})+{}", rng.state.0, rng.state.1, rng.offset);
+                                    let roll_outcome = rng.value();
+                                    rng.step(1);
                                     let success = match roll.constraints {
                                         RollConstrains::Unconstrained => { "trivial-success" }
                                     };
                                     RollContext {
                                         success,
+                                        rng_state: rng_state_str,
                                         description: roll.description,
+                                        roll: roll_outcome,
                                     }
                                 })
                                 .collect_vec();
