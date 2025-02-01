@@ -34,7 +34,35 @@
                     {% for event in tick.events %}
                     <li class="tick-event">
                         <h2>{{ event.game_label }}</h2>
+                        {% if event.errors %}
+                            <ul class="tick-errors">
+                                {% for error in event.errors %}
+                                    <li class="tick-error">
+                                        <p>{{ error }}</p>
+                                    </li>
+                                {% endfor %}
+                            </ul>
+                        {%  endif %}
+                        {% if event.warnings %}
+                            <ul class="tick-warnings">
+                                {% for warning in event.warnings %}
+                                    <li class="tick-warning">
+                                        <p>{{ warning }}</p>
+                                    </li>
+                                {% endfor %}
+                            </ul>
+                        {%  endif %}
                         <p>{{ event.description }}</p>
+                        {% if event.rolls %}
+                            <ol class="rolls">
+                                {% for roll in event.rolls %}
+                                <li class="roll {{ roll.success }}">{{ roll.description }}</li>
+                                {% endfor %}
+                            </ol>
+                        {# Don't render the "no rolls" label if there's errors #}
+                        {% elif not event.errors %}
+                            <p class="no-rolls">No rolls</p>
+                        {% endif %}
                     </li>
                     {% endfor %}
                 </ul>

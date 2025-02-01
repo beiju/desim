@@ -1,8 +1,10 @@
 #[macro_use]
 extern crate rocket;
 mod engine;
+mod event_parser;
 mod game_log;
 
+use crate::engine::RollConstrains;
 use chrono::TimeDelta;
 use chrono_humanize::{Accuracy, HumanTime, Tense};
 use itertools::Itertools;
@@ -65,18 +67,27 @@ fn index() -> Result<Template, DesimError> {
     let first_event_timestamp = first_event.timestamp;
 
     #[derive(Serialize)]
+    struct RollContext {
+        success: &'static str,
+        description: String,
+    }
+
+    #[derive(Serialize)]
     struct EventContext {
-        pub game_label: String,
-        pub description: String,
+        game_label: String,
+        description: String,
+        errors: Vec<String>,
+        warnings: Vec<String>,
+        rolls: Vec<RollContext>,
     }
 
     #[derive(Serialize)]
     struct TickContext {
-        pub tick_index: usize,
-        pub time_since_start: String,
-        pub errors: Vec<String>,
-        pub warnings: Vec<String>,
-        pub events: Vec<EventContext>,
+        tick_index: usize,
+        time_since_start: String,
+        errors: Vec<String>,
+        warnings: Vec<String>,
+        events: Vec<EventContext>,
     }
 
     let mut prev_tick_timestamp = None;
@@ -111,9 +122,42 @@ fn index() -> Result<Template, DesimError> {
 
             let events = tick_events.into_iter()
                 .map(|event| {
-                    EventContext {
-                        game_label: format!("{} @ {}", event.data.home_team_nickname, event.data.away_team_nickname),
-                        description: event.data.last_update,
+                    let game_label = format!("{} @ {}", event.data.home_team_nickname, event.data.away_team_nickname);
+                    let description = event.data.last_update.clone();
+                    match event_parser::parse_event(event) {
+                        Ok(event) => {
+                            let rolls = engine::rolls_for_event(&event).into_iter()
+                                .map(|roll| {
+                                    let success = match roll.constraints {
+                                        RollConstrains::Unconstrained => { "trivial-success" }
+                                    };
+                                    RollContext {
+                                        success,
+                                        description: roll.description,
+                                    }
+                                })
+                                .collect_vec();
+
+                            EventContext {
+                                game_label,
+                                description,
+                                errors: vec![],
+                                warnings: vec![],
+                                rolls,
+                            }
+                        }
+                        Err(err) => {
+                            let errors = vec![
+                                format!("Failed to parse event: {}", err),
+                            ];
+                            EventContext {
+                                game_label,
+                                description,
+                                errors,
+                                warnings: vec![],
+                                rolls: vec![],
+                            }
+                        }
                     }
                 })
                 .collect_vec();
