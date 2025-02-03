@@ -4,8 +4,10 @@ mod engine;
 mod event_parser;
 mod game_log;
 mod rng;
+mod thresholds;
 
 use crate::engine::RollConstrains;
+use crate::thresholds::Thresholds;
 use chrono::{DateTime, TimeDelta, Timelike, Utc};
 use chrono_humanize::{Accuracy, HumanTime, Tense};
 use itertools::Itertools;
@@ -17,6 +19,19 @@ use thiserror::Error;
 // Nominal tick duration is 5 seconds, but our timestamps are post-network-delay so there is
 // definite jitter there
 const MIN_EXPECTED_TICK_DURATION: TimeDelta = TimeDelta::seconds(3);
+
+#[derive(Serialize)]
+#[serde(rename_all = "kebab-case")]
+enum RollConstraintOutcome {
+    /// Succeeded because we don't know enough to confirm that it failed
+    TrivialSuccess,
+    /// We're confident that this roll obeyed the threshold
+    Success,
+    /// We're confident that this roll violated the threshold
+    Failure,
+    /// We're confident that the sim doesn't use the outcome of this roll
+    Unused,
+}
 
 #[derive(Error, Debug)]
 pub enum DesimError {
@@ -51,7 +66,7 @@ impl<'r, 'o: 'r> response::Responder<'r, 'o> for DesimError {
 }
 
 #[get("/")]
-fn index() -> Result<Template, DesimError> {
+fn index(th: &rocket::State<Thresholds>) -> Result<Template, DesimError> {
     let game_data = game_log::load_games().map_err(DesimError::DeserializeGameFailed)?;
     let xs128p_state = (6293080272763260934, 11654195519702723052);
     let mut rng = rng::Rng::new(xs128p_state, 59);
@@ -80,8 +95,7 @@ fn index() -> Result<Template, DesimError> {
 
     #[derive(Serialize)]
     struct RollContext {
-        success: &'static str,
-        rng_state: String,
+        outcome: RollConstraintOutcome,
         description: String,
         roll: f64,
     }
@@ -141,18 +155,35 @@ fn index() -> Result<Template, DesimError> {
                     let description = event.data.last_update.clone();
                     match event_parser::parse_event(event) {
                         Ok(event) => {
-                            let rolls = engine::rolls_for_event(&event).into_iter()
+                            let rolls = engine::rolls_for_event(&event, &th).into_iter()
                                 .map(|roll| {
-                                    let rng_state_str = format!("({}, {})+{}", rng.state.0, rng.state.1, rng.offset);
                                     let roll_outcome = rng.value();
                                     rng.step(1);
-                                    let success = match roll.constraints {
-                                        RollConstrains::Unconstrained => { "trivial-success" }
+                                    let (outcome, description) = match roll.constraints {
+                                        RollConstrains::Unconstrained { description } => {
+                                            (RollConstraintOutcome::TrivialSuccess, format!("{description}: Unconstrained ({roll_outcome})"))
+                                        }
+                                        RollConstrains::BelowThreshold { threshold, negative_description, positive_description } => {
+                                            if roll_outcome < threshold {
+                                                (RollConstraintOutcome::Success, format!("{positive_description} ({roll_outcome} < {threshold})"))
+                                            } else {
+                                                (RollConstraintOutcome::Failure, format!("{negative_description} ({roll_outcome} !< {threshold})"))
+                                            }
+                                        }
+                                        RollConstrains::AboveThreshold { threshold, negative_description, positive_description } => {
+                                            if roll_outcome > threshold {
+                                                (RollConstraintOutcome::Success, format!("{positive_description} ({roll_outcome} > {threshold})"))
+                                            } else {
+                                                (RollConstraintOutcome::Failure, format!("{negative_description} ({roll_outcome} !> {threshold})"))
+                                            }
+                                        }
+                                        RollConstrains::Unused { description } => {
+                                            (RollConstraintOutcome::Unused, format!("{description} (Unused: {roll_outcome})"))
+                                        }
                                     };
                                     RollContext {
-                                        success,
-                                        rng_state: rng_state_str,
-                                        description: roll.description,
+                                        outcome,
+                                        description,
                                         roll: roll_outcome,
                                     }
                                 })
@@ -205,7 +236,10 @@ fn index() -> Result<Template, DesimError> {
 
 #[launch]
 fn rocket() -> _ {
+    let th = thresholds::Thresholds::load().expect("Failed to load thresholds");
+
     rocket::build()
+        .manage(th)
         .mount("/static", rocket::fs::FileServer::from("static"))
         .mount("/", routes![index])
         .attach(Template::fairing())

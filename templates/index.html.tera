@@ -57,9 +57,9 @@
                         {% if event.rolls %}
                             <ol class="rolls">
                                 {% for roll in event.rolls %}
-                                <li class="roll {{ roll.success }}">
-                                    <p class="right-matter">{{ roll.rng_state }}</p>
-                                    {{ roll.description }} (roll {{ roll.roll }})
+                                <li class="roll {{ roll.outcome }}">
+                                    <p class="right-matter">{{ roll.roll }}</p>
+                                    {{ roll.description }}
                                 </li>
                                 {% endfor %}
                             </ol>

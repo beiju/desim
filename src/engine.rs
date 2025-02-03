@@ -1,86 +1,118 @@
 use crate::event_parser::{ParsedEvent, ParsedEventData};
+use crate::thresholds::Thresholds;
 
 pub enum RollConstrains {
-    Unconstrained,
+    Unconstrained {
+        description: String,
+    },
+    BelowThreshold {
+        threshold: f64,
+        positive_description: String,
+        negative_description: String,
+    },
+    AboveThreshold {
+        threshold: f64,
+        positive_description: String,
+        negative_description: String,
+    },
+    Unused {
+        description: String,
+    },
 }
 
 pub struct Roll {
     pub key: &'static str,
-    pub description: String,
     pub constraints: RollConstrains,
 }
 
 impl Roll {
-    pub fn new(key: &'static str, description: String, constraints: RollConstrains) -> Roll {
-        Roll {
-            key,
-            description,
-            constraints,
-        }
+    pub fn new(key: &'static str, constraints: RollConstrains) -> Self {
+        Self { key, constraints }
     }
 }
 
-fn standard_rolls() -> Vec<Roll> {
+fn standard_rolls(th: &Thresholds) -> Vec<Roll> {
     let mut rolls = Vec::new();
     rolls.push(Roll::new(
         "weather",
-        "Weather proc?".to_string(),
-        RollConstrains::Unconstrained,
+        RollConstrains::AboveThreshold {
+            threshold: th.weather,
+            negative_description: "Weather procced".to_string(),
+            positive_description: "Weather did not proc".to_string(),
+        },
     ));
     rolls.push(Roll::new(
         "steal_fielder",
-        "Steal fielder (not necessarily used)".to_string(),
-        RollConstrains::Unconstrained,
+        RollConstrains::Unused {
+            description: "Steal fielder".to_string(),
+        },
     ));
 
     rolls
 }
 
-fn rolls_for_pitch() -> Vec<Roll> {
-    let mut rolls = standard_rolls();
-    rolls.push(Roll::new(
-        "strike",
-        "Strike or ball?".to_string(),
-        RollConstrains::Unconstrained,
-    ));
+fn rolls_for_pitch(th: &Thresholds, in_strike_zone: Option<bool>) -> Vec<Roll> {
+    let mut rolls = standard_rolls(th);
+    let strike_zone_constraint = match in_strike_zone {
+        None => RollConstrains::Unconstrained {
+            description: "In strike zone?".to_string(),
+        },
+        Some(true) => RollConstrains::BelowThreshold {
+            threshold: th.in_strike_zone(),
+            positive_description: "Pitch in strike zone".to_string(),
+            negative_description: "Expected pitch in strike zone, but it was outside".to_string(),
+        },
+        Some(false) => RollConstrains::AboveThreshold {
+            threshold: th.in_strike_zone(),
+            positive_description: "Pitch outside strike zone".to_string(),
+            negative_description: "Expected pitch outside strike zone, but it was inside"
+                .to_string(),
+        },
+    };
+    rolls.push(Roll::new("in_strike_zone", strike_zone_constraint));
     rolls.push(Roll::new(
         "swing",
-        "Did player swing?".to_string(),
-        RollConstrains::Unconstrained,
+        RollConstrains::Unconstrained {
+            description: "Did player swing?".to_string(),
+        },
     ));
 
     rolls
 }
 
-fn rolls_for_contact() -> Vec<Roll> {
-    let mut rolls = rolls_for_pitch();
+fn rolls_for_contact(th: &Thresholds, in_strike_zone: Option<bool>) -> Vec<Roll> {
+    let mut rolls = rolls_for_pitch(th, in_strike_zone);
     rolls.push(Roll::new(
         "contact",
-        "Contact?".to_string(),
-        RollConstrains::Unconstrained,
+        RollConstrains::Unconstrained {
+            description: "Contact?".to_string(),
+        },
     ));
 
     rolls
 }
 
-fn rolls_for_foul() -> Vec<Roll> {
-    let mut rolls = rolls_for_contact();
+fn rolls_for_foul(th: &Thresholds, in_strike_zone: Option<bool>) -> Vec<Roll> {
+    let mut rolls = rolls_for_contact(th, in_strike_zone);
     rolls.push(Roll::new(
         "fair",
-        "Fair or foul?".to_string(),
-        RollConstrains::Unconstrained,
+        RollConstrains::Unconstrained {
+            description: "Fair or foul?".to_string(),
+        },
     ));
 
     rolls
 }
 
-pub fn rolls_for_event(event: &ParsedEvent) -> Vec<Roll> {
+pub fn rolls_for_event(event: &ParsedEvent, th: &Thresholds) -> Vec<Roll> {
     match event.data {
         // No rolls for these events
         ParsedEventData::PlayBall => vec![],
         ParsedEventData::InningTurnover => vec![],
         ParsedEventData::BatterUp => vec![],
-        ParsedEventData::Ball => rolls_for_pitch(),
-        ParsedEventData::FoulBall => rolls_for_foul(),
+        // Balls are known to not be in the strike zone
+        ParsedEventData::Ball => rolls_for_pitch(th, Some(false)),
+        // Fouls may be in or out of the strike zone
+        ParsedEventData::FoulBall => rolls_for_foul(th, None),
     }
 }
