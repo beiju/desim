@@ -16,6 +16,8 @@ pub enum ParsedEventData {
     BatterUp,
     Ball,
     FoulBall,
+    StrikeoutLooking,
+    StrikeoutSwinging,
 }
 
 #[derive(Error, Debug)]
@@ -67,6 +69,7 @@ fn parse_description(input: &str) -> ParserResult<ParsedEventData> {
         parse_batter_up,
         parse_ball,
         parse_foul_ball,
+        parse_strikeout,
     ))
     .parse(input)
 }
@@ -111,4 +114,12 @@ fn parse_foul_ball(input: &str) -> ParserResult<ParsedEventData> {
     let (input, _) = parse_whole_number.parse(input)?;
 
     Ok((input, ParsedEventData::FoulBall))
+}
+
+fn parse_strikeout(input: &str) -> ParserResult<ParsedEventData> {
+    alt((
+        parse_terminated(" strikes out looking.").map(|_| ParsedEventData::StrikeoutLooking),
+        parse_terminated(" strikes out swinging.").map(|_| ParsedEventData::StrikeoutSwinging),
+    ))
+    .parse(input)
 }

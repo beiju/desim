@@ -18,4 +18,8 @@ impl Thresholds {
     pub fn in_strike_zone(&self) -> f64 {
         0.2 // TODO
     }
+
+    pub fn made_contact(&self) -> f64 {
+        0.2 // TODO
+    }
 }
