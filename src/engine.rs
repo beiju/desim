@@ -135,6 +135,7 @@ fn rolls_for_foul(th: &Thresholds, in_strike_zone: Option<bool>) -> Vec<Roll> {
 pub fn rolls_for_event(event: &ParsedEvent, th: &Thresholds) -> Vec<Roll> {
     match event.data {
         // No rolls for these events
+        ParsedEventData::Empty => vec![],
         ParsedEventData::PlayBall => vec![],
         ParsedEventData::InningTurnover => vec![],
         ParsedEventData::BatterUp => vec![],

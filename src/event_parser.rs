@@ -1,7 +1,7 @@
 use crate::game_log;
 use nom::branch::alt;
 use nom::bytes::complete::{tag, take_until1};
-use nom::combinator::{recognize, verify};
+use nom::combinator::{eof, recognize, verify};
 use nom::sequence::terminated;
 use nom::Parser;
 use thiserror::Error;
@@ -11,6 +11,7 @@ pub struct ParsedEvent {
 }
 
 pub enum ParsedEventData {
+    Empty,
     PlayBall,
     InningTurnover,
     BatterUp,
@@ -64,6 +65,7 @@ pub(crate) fn parse_terminated(tag_content: &str) -> impl Fn(&str) -> ParserResu
 
 fn parse_description(input: &str) -> ParserResult<ParsedEventData> {
     alt((
+        parse_empty,
         parse_play_ball,
         parse_inning_turnover,
         parse_batter_up,
@@ -72,6 +74,10 @@ fn parse_description(input: &str) -> ParserResult<ParsedEventData> {
         parse_strikeout,
     ))
     .parse(input)
+}
+
+fn parse_empty(input: &str) -> ParserResult<ParsedEventData> {
+    eof.map(|_| ParsedEventData::Empty).parse(input)
 }
 
 fn parse_play_ball(input: &str) -> ParserResult<ParsedEventData> {

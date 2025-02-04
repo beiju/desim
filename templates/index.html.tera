@@ -53,7 +53,12 @@
                                 {% endfor %}
                             </ul>
                         {%  endif %}
-                        <p>{{ event.description }}</p>
+                        {# Event description can be the empty string and it looks weird without special handling #}
+                        {% if event.description %}
+                            <p>{{ event.description }}</p>
+                        {% else %}
+                            <p class="description-empty">(empty)</p>
+                        {% endif %}
                         {% if event.rolls %}
                             <ol class="rolls">
                                 {% for roll in event.rolls %}

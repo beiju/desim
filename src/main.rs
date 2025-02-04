@@ -68,8 +68,14 @@ impl<'r, 'o: 'r> response::Responder<'r, 'o> for DesimError {
 #[get("/")]
 fn index(th: &rocket::State<Thresholds>) -> Result<Template, DesimError> {
     let game_data = game_log::load_games().map_err(DesimError::DeserializeGameFailed)?;
-    let xs128p_state = (6293080272763260934, 11654195519702723052);
-    let mut rng = rng::Rng::new(xs128p_state, 59);
+    // TODO Load from config file
+    let xs128p_state = (15344562644745423164, 10882960106955666841);
+    let mut rng = rng::Rng::new(xs128p_state, 23);
+    // This appears to be due to the convention resim uses to report rng states
+    rng.step(1);
+    // These would be attributed to Let's Go, but chron missed the Let's Go on the game I'm
+    // currently hard-coding
+    rng.step(2);
 
     let mut all_events = game_data
         .into_iter()
@@ -236,7 +242,7 @@ fn index(th: &rocket::State<Thresholds>) -> Result<Template, DesimError> {
 
 #[launch]
 fn rocket() -> _ {
-    let th = thresholds::Thresholds::load().expect("Failed to load thresholds");
+    let th = Thresholds::load().expect("Failed to load thresholds");
 
     rocket::build()
         .manage(th)
