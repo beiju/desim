@@ -1,4 +1,5 @@
 use crate::event_parser::{ParsedEvent, ParsedEventData};
+use crate::sim;
 use crate::thresholds::Thresholds;
 
 pub enum RollConstrains {
@@ -51,6 +52,7 @@ fn standard_rolls() -> Vec<Roll> {
 
 fn rolls_for_pitch(
     th: &Thresholds,
+    game: &sim::GameAtTick,
     in_strike_zone: Option<bool>,
     player_swung: Option<bool>,
 ) -> Vec<Roll> {
@@ -86,12 +88,12 @@ fn rolls_for_pitch(
             description: "Did player swing?".to_string(),
         },
         Some(true) => RollConstrains::BelowThreshold {
-            threshold: th.in_strike_zone(),
+            threshold: th.swing(true /* TODO this value comes from rng */, game),
             positive_description: "Player swung".to_string(),
             negative_description: "Expected player to swing, but they didn't".to_string(),
         },
         Some(false) => RollConstrains::AboveThreshold {
-            threshold: th.in_strike_zone(),
+            threshold: th.swing(true /* TODO this value comes from rng */, game),
             positive_description: "Player did not swing".to_string(),
             negative_description: "Expected player to not swing, but they did".to_string(),
         },
@@ -103,10 +105,11 @@ fn rolls_for_pitch(
 
 fn rolls_for_contact(
     th: &Thresholds,
+    game: &sim::GameAtTick,
     in_strike_zone: Option<bool>,
     made_contact: Option<bool>,
 ) -> Vec<Roll> {
-    let mut rolls = rolls_for_pitch(th, in_strike_zone, Some(true));
+    let mut rolls = rolls_for_pitch(th, game, in_strike_zone, Some(true));
     let constrains = match made_contact {
         None => RollConstrains::Unconstrained {
             description: "Contact?".to_string(),
@@ -127,8 +130,12 @@ fn rolls_for_contact(
     rolls
 }
 
-fn rolls_for_foul(th: &Thresholds, in_strike_zone: Option<bool>) -> Vec<Roll> {
-    let mut rolls = rolls_for_contact(th, in_strike_zone, Some(true));
+fn rolls_for_foul(
+    th: &Thresholds,
+    game: &sim::GameAtTick,
+    in_strike_zone: Option<bool>,
+) -> Vec<Roll> {
+    let mut rolls = rolls_for_contact(th, game, in_strike_zone, Some(true));
     rolls.push(Roll::new(
         "fair",
         RollConstrains::Unconstrained {
@@ -139,7 +146,7 @@ fn rolls_for_foul(th: &Thresholds, in_strike_zone: Option<bool>) -> Vec<Roll> {
     rolls
 }
 
-pub fn rolls_for_event(event: &ParsedEvent, th: &Thresholds) -> Vec<Roll> {
+pub fn rolls_for_event(event: &ParsedEvent, th: &Thresholds, game: &sim::GameAtTick) -> Vec<Roll> {
     match event.data {
         // No rolls for these events
         ParsedEventData::Empty => vec![],
@@ -147,13 +154,13 @@ pub fn rolls_for_event(event: &ParsedEvent, th: &Thresholds) -> Vec<Roll> {
         ParsedEventData::InningTurnover => vec![],
         ParsedEventData::BatterUp => vec![],
         // Balls are known to not be in the strike zone and the player didn't swing
-        ParsedEventData::Ball => rolls_for_pitch(th, Some(false), Some(false)),
+        ParsedEventData::Ball => rolls_for_pitch(th, game, Some(false), Some(false)),
         // Fouls may be in or out of the strike zone
-        ParsedEventData::FoulBall => rolls_for_foul(th, None),
+        ParsedEventData::FoulBall => rolls_for_foul(th, game, None),
         // Strikeouts looking are known to be in the strike zone and the player didn't swing
-        ParsedEventData::StrikeLooking => rolls_for_pitch(th, Some(true), Some(true)),
-        ParsedEventData::StrikeoutLooking => rolls_for_pitch(th, Some(true), Some(true)),
-        ParsedEventData::StrikeSwinging => rolls_for_contact(th, None, Some(true)),
-        ParsedEventData::StrikeoutSwinging => rolls_for_contact(th, None, Some(true)),
+        ParsedEventData::StrikeLooking => rolls_for_pitch(th, game, Some(true), Some(true)),
+        ParsedEventData::StrikeoutLooking => rolls_for_pitch(th, game, Some(true), Some(true)),
+        ParsedEventData::StrikeSwinging => rolls_for_contact(th, game, None, Some(true)),
+        ParsedEventData::StrikeoutSwinging => rolls_for_contact(th, game, None, Some(true)),
     }
 }

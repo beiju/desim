@@ -371,6 +371,7 @@ dependencies = [
 name = "desim"
 version = "0.1.0"
 dependencies = [
+ "blaseball-api",
  "chrono",
  "chrono-humanize",
  "itertools",
@@ -381,7 +382,6 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror",
- "uuid",
 ]
 
 [[package]]

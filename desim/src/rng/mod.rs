@@ -1,5 +1,9 @@
 mod xs128p;
 
+use nom::Finish;
+use serde::{Deserialize, Deserializer};
+use std::fmt::{Display, Formatter};
+use thiserror::Error;
 use xs128p::{from_double_bits, from_double_bits_v10, xs128p, xs128p_rev, Xs128pState};
 
 type BlockOffset = i32;
@@ -9,6 +13,68 @@ pub struct Rng {
     pub state: Xs128pState,
     pub offset: BlockOffset,
     pub v10: bool,
+}
+
+impl Display for Rng {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "({}, {}+{}", self.state.0, self.state.1, self.offset)
+    }
+}
+
+#[derive(Debug, Error)]
+pub enum RngDeserializeError<'s> {
+    #[error("Failed to parse RNG string: {0}")]
+    ParseError(nom::error::Error<&'s str>),
+    #[error("Failed to parse int within RNG string: {0}")]
+    ParseIntError(std::num::ParseIntError),
+}
+
+fn parse_rng_str_helper(
+    input: &str,
+) -> Result<((&str, &str), &str), nom::Err<nom::error::Error<&str>>> {
+    use nom::{
+        bytes::complete::tag,
+        character::complete::digit1,
+        combinator::{eof, opt},
+        Parser,
+    };
+    let (input, _) = tag("(").parse(input)?;
+    let (input, s0) = digit1.parse(input)?;
+    let (input, _) = tag(",").parse(input)?;
+    let (input, _) = opt(tag(" ")).parse(input)?;
+    let (input, s1) = digit1.parse(input)?;
+    let (input, _) = tag(")+").parse(input)?;
+    let (input, o) = digit1.parse(input)?;
+    let (_, _) = eof.parse(input)?;
+
+    Ok(((s0, s1), o))
+}
+
+fn rng_from_strs(s0: &str, s1: &str, o: &str) -> Result<Rng, std::num::ParseIntError> {
+    let s0 = s0.parse()?;
+    let s1 = s1.parse()?;
+    let o = o.parse()?;
+
+    Ok(Rng::new((s0, s1), o))
+}
+
+fn parse_rng_str(s: &str) -> Result<Rng, RngDeserializeError> {
+    let ((s0, s1), o) = parse_rng_str_helper(s)
+        .finish()
+        .map_err(|e| RngDeserializeError::ParseError(e))?;
+    let rng = rng_from_strs(s0, s1, o).map_err(|e| RngDeserializeError::ParseIntError(e))?;
+    Ok(rng)
+}
+
+impl<'de> Deserialize<'de> for Rng {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        use serde::de::Error;
+        let s: &str = Deserialize::deserialize(deserializer)?;
+        parse_rng_str(s).map_err(D::Error::custom)
+    }
 }
 
 pub fn normalize_offset(offset: BlockOffset) -> BlockOffset {

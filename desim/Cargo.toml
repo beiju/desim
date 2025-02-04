@@ -4,11 +4,11 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+blaseball-api = { path = "../blaseball-api" }
 serde = { version = "1.0.217", features = ["derive"] }
 serde_json = "1.0.138"
 chrono = { version = "0.4.39" , features = ["serde"]}
 itertools = "0.14.0"
-uuid = { version = "1.12.1", features = ["serde"] }
 rocket = "0.5.1"
 rocket_dyn_templates = { version = "0.2.0", features = ["tera"] }
 thiserror = "2.0.11"

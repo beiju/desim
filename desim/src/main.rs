@@ -2,18 +2,25 @@
 extern crate rocket;
 mod engine;
 mod event_parser;
-mod game_log;
+mod fragments;
 mod rng;
+mod sim;
 mod thresholds;
 
 use crate::engine::RollConstrains;
+use crate::fragments::{load_fragments, Fragments};
 use crate::thresholds::Thresholds;
-use chrono::{DateTime, TimeDelta, Timelike, Utc};
+use blaseball_api::chronicler;
+use chrono::{DateTime, TimeDelta, TimeZone, Timelike, Utc};
 use chrono_humanize::{Accuracy, HumanTime, Tense};
 use itertools::Itertools;
+use rocket::futures::{future, StreamExt};
+use rocket::http::uri::fmt::{Formatter, FromUriParam, UriDisplay};
+use rocket::request::FromParam;
 use rocket::{response, Request, Response};
 use rocket_dyn_templates::{context, Template};
 use serde::Serialize;
+use std::pin::pin;
 use thiserror::Error;
 
 // Nominal tick duration is 5 seconds, but our timestamps are post-network-delay so there is
@@ -65,27 +72,74 @@ impl<'r, 'o: 'r> response::Responder<'r, 'o> for DesimError {
     }
 }
 
+struct DateTimeParam(DateTime<Utc>);
+
+impl<'a> FromParam<'a> for DateTimeParam {
+    type Error = chrono::ParseError;
+
+    fn from_param(param: &'a str) -> Result<Self, Self::Error> {
+        Ok(Self(DateTime::parse_from_rfc3339(param)?.to_utc()))
+    }
+}
+
+impl UriDisplay<rocket::http::uri::fmt::Path> for DateTimeParam {
+    fn fmt(&self, f: &mut Formatter<'_, rocket::http::uri::fmt::Path>) -> std::fmt::Result {
+        UriDisplay::fmt(&self.0.to_rfc3339(), f)
+    }
+}
+
+impl FromUriParam<rocket::http::uri::fmt::Path, &DateTime<Utc>> for DateTimeParam {
+    type Target = DateTimeParam;
+
+    fn from_uri_param(param: &DateTime<Utc>) -> Self::Target {
+        DateTimeParam(*param)
+    }
+}
+
 #[get("/")]
-fn index(th: &rocket::State<Thresholds>) -> Result<Template, DesimError> {
-    let game_data = game_log::load_games().map_err(DesimError::DeserializeGameFailed)?;
-    // TODO Load from config file
-    let xs128p_state = (15344562644745423164, 10882960106955666841);
-    let mut rng = rng::Rng::new(xs128p_state, 23);
-    // This appears to be due to the convention resim uses to report rng states
+fn index(fragments: &rocket::State<Fragments>) -> Template {
+    #[derive(Serialize)]
+    struct FragmentContext<'a> {
+        title: String,
+        uri: rocket::http::uri::Origin<'a>,
+    }
+
+    let fragments_view = fragments
+        .iter()
+        .map(|(fragment_start, _)| FragmentContext {
+            title: fragment_start.to_string(),
+            uri: uri!(fragment(fragment_start)),
+        })
+        .collect_vec();
+
+    Template::render(
+        "index",
+        context! {
+            fragments: fragments_view,
+        },
+    )
+}
+
+#[get("/<fragment>")]
+async fn fragment(
+    fragment: DateTimeParam,
+    fragments: &rocket::State<Fragments>,
+    th: &rocket::State<Thresholds>,
+) -> Result<Template, DesimError> {
+    let mut game_data = pin!(chronicler::game_updates(fragment.0).peekable());
+    let mut rng = fragments.get(&fragment.0).unwrap().clone(); // TODO Proper error
+                                                               // This appears to be due to the convention resim uses to report rng states
     rng.step(1);
     // These would be attributed to Let's Go, but chron missed the Let's Go on the game I'm
     // currently hard-coding
     rng.step(2);
 
-    let mut all_events = game_data
-        .into_iter()
-        .flat_map(|game| game.data)
-        .collect_vec();
-    all_events.sort_by_key(|game| game.timestamp);
-
-    let first_event = all_events.first().ok_or(DesimError::NoGameEventsThisDay)?;
-    // Clone some simple data out of first_event so it can be dropped and all_events can be
-    // mutably borrowed
+    let first_event = game_data
+        .as_mut()
+        .peek()
+        .await
+        .ok_or(DesimError::NoGameEventsThisDay)?;
+    let game_id = first_event.game_id;
     let season = first_event.data.season;
     let day = first_event.data.day;
     // To get the theoretical game start, take the timestamp of the first event and zero it out
@@ -98,6 +152,14 @@ fn index(th: &rocket::State<Thresholds>) -> Result<Template, DesimError> {
         .unwrap()
         .with_minute(0)
         .unwrap();
+
+    let game = sim::Game::from_first_event();
+
+    let mut all_events = game_data
+        .take_while(|event| future::ready(event.data.id == game_id))
+        .collect::<Vec<_>>()
+        .await;
+    all_events.sort_by_key(|game| game.timestamp);
 
     #[derive(Serialize)]
     struct RollContext {
@@ -159,9 +221,9 @@ fn index(th: &rocket::State<Thresholds>) -> Result<Template, DesimError> {
                 .map(|event| {
                     let game_label = format!("{} @ {}", event.data.home_team_nickname, event.data.away_team_nickname);
                     let description = event.data.last_update.clone();
-                    match event_parser::parse_event(event) {
-                        Ok(event) => {
-                            let rolls = engine::rolls_for_event(&event, &th).into_iter()
+                    match event_parser::parse_event(&event) {
+                        Ok(parsed_event) => {
+                            let rolls = engine::rolls_for_event(&parsed_event, &th, &game.at_tick(&event)).into_iter()
                                 .map(|roll| {
                                     let roll_outcome = rng.value();
                                     rng.step(1);
@@ -231,7 +293,7 @@ fn index(th: &rocket::State<Thresholds>) -> Result<Template, DesimError> {
         .collect_vec();
 
     Ok(Template::render(
-        "index",
+        "game",
         context! {
             season: season,
             day: day,
@@ -242,12 +304,14 @@ fn index(th: &rocket::State<Thresholds>) -> Result<Template, DesimError> {
 
 #[launch]
 fn rocket() -> _ {
+    let fragments = load_fragments().expect("Failed to load fragments");
     let th = Thresholds::load().expect("Failed to load thresholds");
 
     let static_path = concat!(env!("CARGO_MANIFEST_DIR"), "/static");
     rocket::build()
+        .manage(fragments)
         .manage(th)
         .mount("/static", rocket::fs::FileServer::from(static_path))
-        .mount("/", routes![index])
+        .mount("/", routes![index, fragment])
         .attach(Template::fairing())
 }

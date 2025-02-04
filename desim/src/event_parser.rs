@@ -1,4 +1,4 @@
-use crate::game_log;
+use blaseball_api::ChroniclerGameUpdate;
 use nom::branch::alt;
 use nom::bytes::complete::{tag, take_until1};
 use nom::character::complete::digit1;
@@ -30,9 +30,9 @@ pub enum EventParseError {
     FailedToParseDescription(String),
 }
 
-pub fn parse_event(event: game_log::GameEvent) -> Result<ParsedEvent, EventParseError> {
+pub fn parse_event(game_update: &ChroniclerGameUpdate) -> Result<ParsedEvent, EventParseError> {
     let (_, data) = parse_description
-        .parse(&event.data.last_update)
+        .parse(&game_update.data.last_update)
         .map_err(|err| EventParseError::FailedToParseDescription(err.to_string()))?;
 
     Ok(ParsedEvent { data })
