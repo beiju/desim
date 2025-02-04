@@ -244,9 +244,10 @@ fn index(th: &rocket::State<Thresholds>) -> Result<Template, DesimError> {
 fn rocket() -> _ {
     let th = Thresholds::load().expect("Failed to load thresholds");
 
+    let static_path = concat!(env!("CARGO_MANIFEST_DIR"), "/static");
     rocket::build()
         .manage(th)
-        .mount("/static", rocket::fs::FileServer::from("static"))
+        .mount("/static", rocket::fs::FileServer::from(static_path))
         .mount("/", routes![index])
         .attach(Template::fairing())
 }

@@ -1,6 +1,7 @@
 use crate::game_log;
 use nom::branch::alt;
 use nom::bytes::complete::{tag, take_until1};
+use nom::character::complete::digit1;
 use nom::combinator::{eof, recognize, verify};
 use nom::sequence::terminated;
 use nom::Parser;
@@ -17,7 +18,9 @@ pub enum ParsedEventData {
     BatterUp,
     Ball,
     FoulBall,
+    StrikeLooking,
     StrikeoutLooking,
+    StrikeSwinging,
     StrikeoutSwinging,
 }
 
@@ -72,6 +75,7 @@ fn parse_description(input: &str) -> ParserResult<ParsedEventData> {
         parse_ball,
         parse_foul_ball,
         parse_strikeout,
+        parse_strike,
     ))
     .parse(input)
 }
@@ -128,4 +132,19 @@ fn parse_strikeout(input: &str) -> ParserResult<ParsedEventData> {
         parse_terminated(" strikes out swinging.").map(|_| ParsedEventData::StrikeoutSwinging),
     ))
     .parse(input)
+}
+
+fn parse_strike(input: &str) -> ParserResult<ParsedEventData> {
+    let (input, strike_type) = alt((
+        tag("Strike, swinging.").map(|_| ParsedEventData::StrikeSwinging),
+        tag("Strike, looking.").map(|_| ParsedEventData::StrikeLooking),
+    ))
+    .parse(input)?;
+
+    let (input, _) = tag(" ").parse(input)?;
+    let (input, _strikes) = digit1.parse(input)?;
+    let (input, _) = tag("-").parse(input)?;
+    let (input, _balls) = digit1.parse(input)?;
+
+    Ok((input, strike_type))
 }

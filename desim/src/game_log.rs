@@ -28,7 +28,7 @@ pub struct Game {
 
 static GAME_JSON: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
-    "/resources/s12d113.json"
+    "/resources/s12d112.json"
 ));
 
 pub fn load_games() -> serde_json::Result<Vec<Game>> {

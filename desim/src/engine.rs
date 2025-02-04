@@ -31,14 +31,12 @@ impl Roll {
     }
 }
 
-fn standard_rolls(th: &Thresholds) -> Vec<Roll> {
+fn standard_rolls() -> Vec<Roll> {
     let mut rolls = Vec::new();
     rolls.push(Roll::new(
-        "weather",
-        RollConstrains::AboveThreshold {
-            threshold: th.weather,
-            negative_description: "Weather procced".to_string(),
-            positive_description: "Weather did not proc".to_string(),
+        "party_time",
+        RollConstrains::Unused {
+            description: "Party time".to_string(),
         },
     ));
     rolls.push(Roll::new(
@@ -56,7 +54,16 @@ fn rolls_for_pitch(
     in_strike_zone: Option<bool>,
     player_swung: Option<bool>,
 ) -> Vec<Roll> {
-    let mut rolls = standard_rolls(th);
+    let mut rolls = standard_rolls();
+    rolls.push(Roll::new(
+        "mild_pitch",
+        RollConstrains::AboveThreshold {
+            threshold: th.mild_pitch(),
+            positive_description: "No mild pitch".to_string(),
+            negative_description: "Expected no mild pitch".to_string(),
+        },
+    ));
+
     let strike_zone_constraint = match in_strike_zone {
         None => RollConstrains::Unconstrained {
             description: "In strike zone?".to_string(),
@@ -144,7 +151,9 @@ pub fn rolls_for_event(event: &ParsedEvent, th: &Thresholds) -> Vec<Roll> {
         // Fouls may be in or out of the strike zone
         ParsedEventData::FoulBall => rolls_for_foul(th, None),
         // Strikeouts looking are known to be in the strike zone and the player didn't swing
+        ParsedEventData::StrikeLooking => rolls_for_pitch(th, Some(true), Some(true)),
         ParsedEventData::StrikeoutLooking => rolls_for_pitch(th, Some(true), Some(true)),
+        ParsedEventData::StrikeSwinging => rolls_for_contact(th, None, Some(true)),
         ParsedEventData::StrikeoutSwinging => rolls_for_contact(th, None, Some(true)),
     }
 }

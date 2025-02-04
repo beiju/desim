@@ -22,4 +22,10 @@ impl Thresholds {
     pub fn made_contact(&self) -> f64 {
         0.2 // TODO
     }
+
+    pub fn mild_pitch(&self) -> f64 {
+        // Mysticism was always treated as 0.5 in s12
+        let mysticism = 0.5;
+        0.0005 + 0.004 * mysticism
+    }
 }
