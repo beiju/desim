@@ -1,6 +1,6 @@
-use crate::event_parser::{ParsedEvent, ParsedEventData};
 use crate::sim;
 use crate::thresholds::Thresholds;
+use crate::update_parser::{ParsedEvent, ParsedEventData};
 
 pub enum RollConstrains {
     Unconstrained {

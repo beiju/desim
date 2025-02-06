@@ -1,17 +1,18 @@
 #[macro_use]
 extern crate rocket;
 mod engine;
-mod event_parser;
 mod fragments;
 mod rng;
 mod sim;
 mod thresholds;
+mod update_parser;
 
 use crate::engine::RollConstrains;
 use crate::fragments::{load_fragments, Fragments};
+use crate::sim::HalfInning;
 use crate::thresholds::Thresholds;
 use blaseball_api::chronicler;
-use chrono::{DateTime, TimeDelta, TimeZone, Timelike, Utc};
+use chrono::{DateTime, TimeDelta, Timelike, Utc};
 use chrono_humanize::{Accuracy, HumanTime, Tense};
 use itertools::Itertools;
 use rocket::futures::{future, StreamExt};
@@ -128,23 +129,24 @@ async fn fragment(
 ) -> Result<Template, DesimError> {
     let mut game_data = pin!(chronicler::game_updates(fragment.0).peekable());
     let mut rng = fragments.get(&fragment.0).unwrap().clone(); // TODO Proper error
-                                                               // This appears to be due to the convention resim uses to report rng states
+
+    // This appears to be due to the convention resim uses to report rng states
     rng.step(1);
     // These would be attributed to Let's Go, but chron missed the Let's Go on the game I'm
     // currently hard-coding
     rng.step(2);
 
-    let first_event = game_data
+    let first_update = game_data
         .as_mut()
         .peek()
         .await
         .ok_or(DesimError::NoGameEventsThisDay)?;
-    let game_id = first_event.game_id;
-    let season = first_event.data.season;
-    let day = first_event.data.day;
+    let game_id = first_update.game_id;
+    let season = first_update.data.season;
+    let day = first_update.data.day;
     // To get the theoretical game start, take the timestamp of the first event and zero it out
     // to the hour mark
-    let game_start_timestamp = first_event
+    let game_start_timestamp = first_update
         .timestamp
         .with_nanosecond(0)
         .unwrap()
@@ -153,7 +155,7 @@ async fn fragment(
         .with_minute(0)
         .unwrap();
 
-    let game = sim::Game::from_first_event();
+    let game = sim::Game::from_first_game_update(first_update).await;
 
     let mut all_events = game_data
         .take_while(|event| future::ready(event.data.id == game_id))
@@ -199,7 +201,7 @@ async fn fragment(
             let time_since_start = tick_timestamp - game_start_timestamp;
             let time_since_start_display = HumanTime::from(time_since_start).to_text_en(Accuracy::Precise, Tense::Present);
 
-            let errors = tick_events.iter()
+            let mut errors = tick_events.iter()
                 .duplicates_by(|g| g.game_id)
                 .map(|duplicate| {
                     format!("Contains multiple events for game {}", duplicate.game_id)
@@ -218,12 +220,32 @@ async fn fragment(
             prev_tick_timestamp = Some(tick_timestamp);
 
             let events = tick_events.into_iter()
-                .map(|event| {
-                    let game_label = format!("{} @ {}", event.data.home_team_nickname, event.data.away_team_nickname);
-                    let description = event.data.last_update.clone();
-                    match event_parser::parse_event(&event) {
+                .map(|update| {
+                    let game_label = format!("{} @ {}", update.data.home_team_nickname, update.data.away_team_nickname);
+                    let description = update.data.last_update.clone();
+                    match update_parser::parse_update(&update) {
                         Ok(parsed_event) => {
-                            let rolls = engine::rolls_for_event(&parsed_event, &th, &game.at_tick(&event)).into_iter()
+                            let game_at_tick = game.at_tick(&update);
+                            if !(update.data.away_team_batter_count < 0 || update.data.home_team_batter_count < 0) {
+                                let computed_batter = Some(game_at_tick.batter().player.id);
+                                let observed_batter = match game_at_tick.half {
+                                    HalfInning::Top => { update.data.away_batter }
+                                    HalfInning::Bottom => { update.data.home_batter }
+                                };
+                                if computed_batter != observed_batter {
+                                    errors.push(format!("Batter did not match! Computed {computed_batter:?} but observed {observed_batter:?}"))
+                                }
+                            }
+                            let computed_pitcher = Some(game_at_tick.pitcher().player.id);
+                            let observed_pitcher = match game_at_tick.half {
+                                HalfInning::Top => { update.data.away_pitcher }
+                                HalfInning::Bottom => { update.data.home_pitcher }
+                            };
+                            if computed_pitcher != observed_pitcher {
+                                errors.push(format!("Pitcher did not match! Computed {computed_pitcher:?} but observed {observed_pitcher:?}"))
+                            }
+
+                            let rolls = engine::rolls_for_event(&parsed_event, &th, &game_at_tick).into_iter()
                                 .map(|roll| {
                                     let roll_outcome = rng.value();
                                     rng.step(1);

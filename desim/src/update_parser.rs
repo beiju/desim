@@ -30,7 +30,7 @@ pub enum EventParseError {
     FailedToParseDescription(String),
 }
 
-pub fn parse_event(game_update: &ChroniclerGameUpdate) -> Result<ParsedEvent, EventParseError> {
+pub fn parse_update(game_update: &ChroniclerGameUpdate) -> Result<ParsedEvent, EventParseError> {
     let (_, data) = parse_description
         .parse(&game_update.data.last_update)
         .map_err(|err| EventParseError::FailedToParseDescription(err.to_string()))?;
