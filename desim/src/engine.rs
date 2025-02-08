@@ -30,6 +30,7 @@ pub struct Engine {
     pending_updates: Vec<ChroniclerGameUpdate>,
     // Contains an under-construction DayContext (or None if we haven't started yet)
     current_day: Option<DayContext>,
+    tick_number: usize,
 }
 
 #[derive(Debug, Clone, Error)]
@@ -75,6 +76,7 @@ pub struct GameTickContext {
 
 #[derive(Serialize)]
 pub struct TickContext {
+    tick_number: usize,
     tick_timestamp: DateTime<Utc>,
     games: Vec<GameTickContext>,
 }
@@ -200,6 +202,7 @@ impl Engine {
             active_games: HashMap::new(),
             pending_updates: Vec::new(),
             current_day: None,
+            tick_number: 0,
         }
     }
 
@@ -276,7 +279,10 @@ impl Engine {
                 Ordering::Greater => {
                     // If we received an event for a new day, extract and return
                     // the previous day. Also drop all the `sim::Game`s for the
-                    // previous day; they will never be used again
+                    // previous day; they will never be used again. Also also
+                    // reset the tick number. Maybe I should encapsulate all 
+                    // this per-day stuff in a separate struct.
+                    self.tick_number = 0;
                     self.active_games.clear();
                     Ok(std::mem::replace(&mut self.current_day, None))
                 }
@@ -327,10 +333,12 @@ impl Engine {
         }
 
         day.ticks.push(TickContext {
+            tick_number: self.tick_number,
             tick_timestamp,
             games: game_updates,
         });
 
+        self.tick_number += 1; 
         Ok(finished_day)
     }
 }

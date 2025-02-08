@@ -33,73 +33,85 @@ body {
     padding: 5px 9px;
 }
 
-.gameday {
-    background: rgba(0, 0, 0, 0.5);
-    border: 1px solid black;
+.gameday-ticks {
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    border-top: none;
+    border-spacing: 0;
+
+    --tick-label-color: #950000;
 }
 
-.gameday h1 {
-    margin: 0;
-    background: #202020;
-    font-size: 1em;
-    font-weight: normal;
-    padding: 5px 8px;
-    border-bottom: 1px solid black;
-    border-left: 5px solid #5e5e5e;
+.gameday-ticks td {
+    padding: 4px 6px;
 }
 
-.description-empty {
-    color: #919191;
+.gameday-ticks tbody {
+    /* tick labels are position: absolute with widths relative to their tbody */
+    position: relative;
 }
 
-.tick .right-matter {
-    float: right;
-    margin: 0;
-    font-weight: normal;
-    font-size: 0.8em;
-    padding: 7px 10px;
-    color: #575757;
-    text-shadow: rgba(0, 0, 0, 0.3) 0 -1px 0;
+.gameday-ticks .tick-label-row {
+    display: block;
+    position: absolute;
+    border-bottom: 1px solid var(--tick-label-color);
+    width: 100%;
+    height: 0;
+    opacity: 0.5;
 }
 
-.tick-errors, .tick-warnings, .tick-events {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-    border-bottom: 1px solid black;
+.gameday-ticks tbody:hover .tick-label-row {
+    opacity: 1;
 }
 
-.tick-error, .tick-warning {
+.gameday-ticks .tick-label {
+    position: absolute;
+    left: -64px;
+    text-wrap: nowrap;
+    background: var(--tick-label-color);
+    border-radius: 6px 0 0 6px;
+    top: -12px;
+    height: 12px;
+    padding: 5px 3px 9px 8px;
+    text-transform: uppercase;
+    text-shadow: rgba(0, 0, 0, 0.3) 0 1px 1px;
+    font-size: 12px;
+    width: 41px;
+}
+
+.gameday-ticks .tick-label::after {
+    content: "";
+    height: 0;
+    width: 0;
+    border: 13px solid transparent;
+    border-left-color: var(--tick-label-color);
+    box-sizing: border-box;
+    display: block;
+    position: absolute;
+    top: 0;
+    right: -26px;
+    z-index: 100;
+}
+
+.gameday-ticks .tick-error,
+.gameday-ticks .tick-warning,
+.gameday-ticks .game-tick-error,
+.gameday-ticks .game-tick-warning {
     margin: 0;
     padding: 5px 8px;
     border-left: 5px solid transparent;
 }
 
-.tick-error p, .tick-warning p {
-    margin: 0;
-}
-
-.tick-error {
+.gameday-ticks .tick-error, .gameday-ticks .game-tick-error {
     background: #3e0000;
     border-left-color: #b50000;
 }
 
-.tick-warning {
+.gameday-ticks .tick-warning, .gameday-ticks .game-tick-warning {
     background: #443d00;
     border-left-color: #b5a100;
 }
 
-.tick-event {
-    margin-left: 24px;
-    background: #393939;
-    color: #cecece;
-}
-
-.tick-event > * {
-    margin: 0;
-}
-
-.tick-event h2 {
+.gameday-ticks .game-tick-label {
     font-size: 0.85em;
     font-variant: small-caps;
     text-transform: lowercase;
@@ -109,58 +121,55 @@ body {
     background: rgba(0, 0, 0, 0.5);
     padding: 1px 6px 3px;
     border-bottom: 1px solid black;
+    border-top: 1px solid rgba(255, 255, 255, 0.4);
 }
 
-.tick-event p {
+.gameday-ticks .game-tick-event {
+    background: #393939;
+    color: #cecece;
     padding: 5px 8px;
     font-size: 0.9em;
     border-bottom: 1px solid rgba(0, 0, 0, 0.5);
 }
 
-.tick-event .rolls {
-    padding: 0;
+.gameday-ticks .description-empty {
+    color: #919191;
 }
 
-.tick-event .roll {
+.gameday-ticks .roll {
     padding: 1px 6px 3px;
 }
 
-.tick-event .no-rolls {
+.gameday-ticks .no-rolls {
     background: #000;
     border-left: 5px solid #222121;
     text-transform: lowercase;
     font-variant: small-caps;
     padding: 2px 8px 3px;
+    font-size: 13px;
 }
 
-.roll.trivial-success {
+.gameday-ticks .roll.trivial-success {
     background: #394a39;
     border-left: 5px solid #9d9d9d;
 }
 
-.roll.success {
+.gameday-ticks .roll.success {
     background: #2d6a2d;
     border-left: 5px solid #07dd00;
 }
 
-.roll.failure {
+.gameday-ticks .roll.failure {
     background: #6a2d2d;
     border-left: 5px solid #dd0000;
 }
 
-.roll.unused {
+.gameday-ticks .roll.unused {
     background: #1e1e1e;
     border-left: 5px solid #373737;
     color: #646464;
 }
 
-.roll {
+.gameday-ticks .roll {
     border-bottom: 1px solid rgba(0, 0, 0, 0.5);
-}
-
-.roll .right-matter {
-    color: #777;
-    padding: 3px 0 0;
-    border-bottom: navajowhite;
-    font-size: 0.7em;
 }

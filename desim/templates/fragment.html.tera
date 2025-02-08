@@ -9,79 +9,81 @@
         <h1 class="page-title">Desim Fragment — {{ fragment_label }}</h1>
         {% for day in days %}
         <section class="gameday">
+            <h1 class="gameday-label">S{{ day.season + 1 }}D{{ day.day + 1 }}</h1>
+            <table class="gameday-ticks">
             {% for tick in day.ticks %}
-            <section class="tick">
-                <h1>
-                    Tick received at {{ tick.tick_timestamp }}:
-                    {{ tick.games | length }}
-                    game update{{ tick.games | length | pluralize }}
-                </h1>
+            <tbody class="gameday-tick">
+                <tr class="tick-label-row">
+                    <td colspan="5" class="tick-label">Tick {{ tick.tick_number }}</td>
+                </tr>
+
                 {% if tick.errors %}
-                <ul class="tick-errors">
-                    {% for error in tick.errors %}
-                    <li class="tick-error">
-                        <p>{{ error }}</p>
-                    </li>
-                    {% endfor %}
-                </ul>
-                {%  endif %}
+                {% for error in tick.errors %}
+                <tr>
+                    <td colspan="5" class="tick-error">{{ error }}</td>
+                </tr>
+                {% endfor %}
+                {% endif %}
+
                 {% if tick.warnings %}
-                <ul class="tick-warnings">
-                    {% for warning in tick.warnings %}
-                    <li class="tick-warning">
-                        <p>{{ warning }}</p>
-                    </li>
-                    {% endfor %}
-                </ul>
-                {%  endif %}
+                {% for warning in tick.warnings %}
+                <tr>
+                    <td colspan="5" class="tick-warning">{{ warning }}</td>
+                </tr>
+                {% endfor %}
+                {% endif %}
+
                 {% if tick.games %}
-                <ul class="tick-events">
-                    {% for game_tick in tick.games %}
-                    <li class="tick-event">
-                        <h2>{{ game_tick.game_label }}</h2>
-                        {% if game_tick.errors %}
-                            <ul class="tick-errors">
-                                {% for error in game_tick.errors %}
-                                    <li class="tick-error">
-                                        <p>{{ error }}</p>
-                                    </li>
-                                {% endfor %}
-                            </ul>
-                        {%  endif %}
-                        {% if game_tick.warnings %}
-                            <ul class="tick-warnings">
-                                {% for warning in game_tick.warnings %}
-                                    <li class="tick-warning">
-                                        <p>{{ warning }}</p>
-                                    </li>
-                                {% endfor %}
-                            </ul>
-                        {%  endif %}
-                        {# Event description can be the empty string and it looks weird without special handling #}
-                        {% if game_tick.description %}
-                            <p>{{ game_tick.description }}</p>
-                        {% else %}
-                            <p class="description-empty">(empty)</p>
-                        {% endif %}
-                        {% if game_tick.rolls %}
-                            <ol class="rolls">
-                                {% for roll in game_tick.rolls %}
-                                <li class="roll {{ roll.outcome }}">
-                                    <p class="right-matter">{{ roll.roll }}</p>
-                                    {{ roll.description }}
-                                </li>
-                                {% endfor %}
-                            </ol>
-                        {# Don't render the "no rolls" label if there's errors #}
-                        {% elif not event.errors %}
-                            <p class="no-rolls">No rolls</p>
-                        {% endif %}
-                    </li>
+                {% for game_tick in tick.games %}
+                    <tr>
+                        <td colspan="5" class="game-tick-label">{{ game_tick.game_label }}</td>
+                    </tr>
+                    {% if game_tick.errors %}
+                    {% for error in game_tick.errors %}
+                        <tr>
+                            <td colspan="5" class="game-tick-error">{{ error }}</td>
+                        </tr>
                     {% endfor %}
-                </ul>
-                {%  endif %}
-            </section>
+                    {%  endif %}
+
+                    {% if game_tick.warnings %}
+                    {% for warning in game_tick.warnings %}
+                        <tr>
+                            <td colspan="5" class="game-tick-warning">{{ warning }}</td>
+                        </tr>
+                    {% endfor %}
+                    {%  endif %}
+
+                    {# Event description can be the empty string and it looks weird without special handling #}
+                    {% if game_tick.description %}
+                        <tr>
+                            <td colspan="5" class="game-tick-event">{{ game_tick.description }}</td>
+                        </tr>
+                    {% else %}
+                        <tr>
+                            <td colspan="5" class="game-tick-event description-empty">(empty)</td>
+                        </tr>
+                    {% endif %}
+
+                    {% if game_tick.rolls %}
+                    {% for roll in game_tick.rolls %}
+                    <tr>
+                        <td class="tick-indent"></td>
+                        <td colspan="3" class="roll {{ roll.outcome }}">{{ roll.description }}</td>
+                        <td class="roll {{ roll.outcome }}">{{ roll.roll }}</td>
+                    </tr>
+                    {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td class="tick-indent"></td>
+                            <td colspan="4" class=" roll no-rolls">No rolls</td>
+                        </tr>
+                    {% endif %}
+                {% endfor %}
+                {% endif %}
+            </tbody>
             {% endfor %}
+            </table>
         </section>
         {% endfor %}
     </body>
