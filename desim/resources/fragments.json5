@@ -1,0 +1,11 @@
+[
+  {
+    "label": "S12 finals",
+    "start_time": "2021-03-06T20:00:00.749Z",
+    "end_time": "2021-03-06T23:50:00.000Z",
+    "rng": "(15344562644745423164, 10882960106955666841)+23",
+    // These would normally belong to the LetsGo tick, but for the first game 
+    // of this fragment Chron missed that update
+    "initial_step": 2,
+  }
+]

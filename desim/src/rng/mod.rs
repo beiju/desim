@@ -72,8 +72,11 @@ impl<'de> Deserialize<'de> for Rng {
         D: Deserializer<'de>,
     {
         use serde::de::Error;
-        let s: &str = Deserialize::deserialize(deserializer)?;
-        parse_rng_str(s).map_err(D::Error::custom)
+        // let s: &str will compile, but error at runtime. I'm not pleased that
+        // compiles-but-errors-at-runtime is a consequence of incorrect types.
+        // Isn't that the whole point of static typing
+        let s: String = Deserialize::deserialize(deserializer)?;
+        parse_rng_str(&s).map_err(D::Error::custom)
     }
 }
 

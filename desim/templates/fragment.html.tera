@@ -1,17 +1,21 @@
 <!doctype html>
 <html>
     <head>
-        <title>Desim — S{{ season + 1 }}D{{ day + 1 }}</title>
+        <title>Desim Fragment — {{ fragment_label }}</title>
 
         <link rel="stylesheet" href="/static/style.css" />
     </head>
     <body>
-        <h1 class="page-title">Desim — S{{ season + 1 }}D{{ day + 1 }}</h1>
+        <h1 class="page-title">Desim Fragment — {{ fragment_label }}</h1>
+        {% for day in days %}
         <section class="gameday">
-            {% for tick in ticks %}
+            {% for tick in day.ticks %}
             <section class="tick">
-                <h2 class="right-matter">{{ tick.tick_timestamp }}</h2>
-                <h1>Tick {{ tick.tick_index }}: {{ tick.time_since_start }}</h1>
+                <h1>
+                    Tick received at {{ tick.tick_timestamp }}:
+                    {{ tick.games | length }}
+                    game update{{ tick.games | length | pluralize }}
+                </h1>
                 {% if tick.errors %}
                 <ul class="tick-errors">
                     {% for error in tick.errors %}
@@ -30,23 +34,23 @@
                     {% endfor %}
                 </ul>
                 {%  endif %}
-                {% if tick.events %}
+                {% if tick.games %}
                 <ul class="tick-events">
-                    {% for event in tick.events %}
+                    {% for game_tick in tick.games %}
                     <li class="tick-event">
-                        <h2>{{ event.game_label }}</h2>
-                        {% if event.errors %}
+                        <h2>{{ game_tick.game_label }}</h2>
+                        {% if game_tick.errors %}
                             <ul class="tick-errors">
-                                {% for error in event.errors %}
+                                {% for error in game_tick.errors %}
                                     <li class="tick-error">
                                         <p>{{ error }}</p>
                                     </li>
                                 {% endfor %}
                             </ul>
                         {%  endif %}
-                        {% if event.warnings %}
+                        {% if game_tick.warnings %}
                             <ul class="tick-warnings">
-                                {% for warning in event.warnings %}
+                                {% for warning in game_tick.warnings %}
                                     <li class="tick-warning">
                                         <p>{{ warning }}</p>
                                     </li>
@@ -54,14 +58,14 @@
                             </ul>
                         {%  endif %}
                         {# Event description can be the empty string and it looks weird without special handling #}
-                        {% if event.description %}
-                            <p>{{ event.description }}</p>
+                        {% if game_tick.description %}
+                            <p>{{ game_tick.description }}</p>
                         {% else %}
                             <p class="description-empty">(empty)</p>
                         {% endif %}
-                        {% if event.rolls %}
+                        {% if game_tick.rolls %}
                             <ol class="rolls">
-                                {% for roll in event.rolls %}
+                                {% for roll in game_tick.rolls %}
                                 <li class="roll {{ roll.outcome }}">
                                     <p class="right-matter">{{ roll.roll }}</p>
                                     {{ roll.description }}
@@ -79,5 +83,6 @@
             </section>
             {% endfor %}
         </section>
+        {% endfor %}
     </body>
 </html>

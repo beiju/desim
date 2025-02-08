@@ -1,2 +1,3 @@
 [default]
 port = 4110
+log_level = "debug"

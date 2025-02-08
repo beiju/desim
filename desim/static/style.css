@@ -12,6 +12,27 @@ body {
     font-weight: normal;
 }
 
+.error-header {
+    background: #300;
+    font-weight: normal;
+    border: 1px solid #ffffff80;
+    padding: 7px 12px;
+    border-radius: 12px 12px 0 0;
+    font-family: monospace;
+    color: #d0d0d0;
+    margin-bottom: 0;
+    border-bottom: 0;
+}
+
+.error-body {
+    background: #df8585;
+    color: black;
+    text-shadow: none;
+    margin: 0;
+    border: 1px solid #ffffff80;
+    padding: 5px 9px;
+}
+
 .gameday {
     background: rgba(0, 0, 0, 0.5);
     border: 1px solid black;

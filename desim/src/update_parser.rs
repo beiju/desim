@@ -2,16 +2,16 @@ use blaseball_api::ChroniclerGameUpdate;
 use nom::branch::alt;
 use nom::bytes::complete::{tag, take_until1};
 use nom::character::complete::digit1;
-use nom::combinator::{eof, recognize, verify};
+use nom::combinator::{eof, map_res, recognize, verify};
 use nom::sequence::terminated;
 use nom::Parser;
 use thiserror::Error;
 
-pub struct ParsedEvent {
-    pub data: ParsedEventData,
+pub struct ParsedUpdate {
+    pub data: ParsedUpdateData,
 }
 
-pub enum ParsedEventData {
+pub enum ParsedUpdateData {
     Empty,
     PlayBall,
     InningTurnover,
@@ -25,24 +25,24 @@ pub enum ParsedEventData {
 }
 
 #[derive(Error, Debug)]
-pub enum EventParseError {
+pub enum UpdateParseError {
     #[error("Couldn't parse description: {0}")]
     FailedToParseDescription(String),
 }
 
-pub fn parse_update(game_update: &ChroniclerGameUpdate) -> Result<ParsedEvent, EventParseError> {
+pub fn parse_update(game_update: &ChroniclerGameUpdate) -> Result<ParsedUpdate, UpdateParseError> {
     let (_, data) = parse_description
         .parse(&game_update.data.last_update)
-        .map_err(|err| EventParseError::FailedToParseDescription(err.to_string()))?;
+        .map_err(|err| UpdateParseError::FailedToParseDescription(err.to_string()))?;
 
-    Ok(ParsedEvent { data })
+    Ok(ParsedUpdate { data })
 }
 
 pub type ParserError<'a> = nom::error::Error<&'a str>;
 pub type ParserResult<'a, Out> = nom::IResult<&'a str, Out, ParserError<'a>>;
 
 pub(crate) fn parse_whole_number(input: &str) -> ParserResult<i64> {
-    nom::combinator::map_res(nom::character::complete::digit1, str::parse).parse(input)
+    map_res(digit1, str::parse).parse(input)
 }
 
 pub(crate) fn parse_terminated(tag_content: &str) -> impl Fn(&str) -> ParserResult<&str> + '_ {
@@ -66,7 +66,7 @@ pub(crate) fn parse_terminated(tag_content: &str) -> impl Fn(&str) -> ParserResu
     }
 }
 
-fn parse_description(input: &str) -> ParserResult<ParsedEventData> {
+fn parse_description(input: &str) -> ParserResult<ParsedUpdateData> {
     alt((
         parse_empty,
         parse_play_ball,
@@ -80,64 +80,64 @@ fn parse_description(input: &str) -> ParserResult<ParsedEventData> {
     .parse(input)
 }
 
-fn parse_empty(input: &str) -> ParserResult<ParsedEventData> {
-    eof.map(|_| ParsedEventData::Empty).parse(input)
+fn parse_empty(input: &str) -> ParserResult<ParsedUpdateData> {
+    eof.map(|_| ParsedUpdateData::Empty).parse(input)
 }
 
-fn parse_play_ball(input: &str) -> ParserResult<ParsedEventData> {
+fn parse_play_ball(input: &str) -> ParserResult<ParsedUpdateData> {
     tag("Play ball!")
-        .map(|_| ParsedEventData::PlayBall)
+        .map(|_| ParsedUpdateData::PlayBall)
         .parse(input)
 }
 
-fn parse_inning_turnover(input: &str) -> ParserResult<ParsedEventData> {
+fn parse_inning_turnover(input: &str) -> ParserResult<ParsedUpdateData> {
     let (input, _) = alt((tag("Top"), tag("Bottom"))).parse(input)?;
     let (input, _) = tag(" of ").parse(input)?;
     let (input, _) = parse_whole_number.parse(input)?;
     let (input, _) = tag(", ").parse(input)?;
     let (input, _) = parse_terminated(" batting.").parse(input)?;
 
-    Ok((input, ParsedEventData::InningTurnover))
+    Ok((input, ParsedUpdateData::InningTurnover))
 }
 
-fn parse_batter_up(input: &str) -> ParserResult<ParsedEventData> {
+fn parse_batter_up(input: &str) -> ParserResult<ParsedUpdateData> {
     let (input, _) = parse_terminated(" batting for the ").parse(input)?;
     // TODO Parsing just a period is fragile; try porting parse_until_period_eof from Fed
     let (input, _) = parse_terminated(".").parse(input)?;
 
-    Ok((input, ParsedEventData::BatterUp))
+    Ok((input, ParsedUpdateData::BatterUp))
 }
 
-fn parse_ball(input: &str) -> ParserResult<ParsedEventData> {
+fn parse_ball(input: &str) -> ParserResult<ParsedUpdateData> {
     let (input, _) = tag("Ball. ").parse(input)?;
     let (input, _) = parse_whole_number.parse(input)?;
     let (input, _) = tag("-").parse(input)?;
     let (input, _) = parse_whole_number.parse(input)?;
 
-    Ok((input, ParsedEventData::Ball))
+    Ok((input, ParsedUpdateData::Ball))
 }
 
-fn parse_foul_ball(input: &str) -> ParserResult<ParsedEventData> {
+fn parse_foul_ball(input: &str) -> ParserResult<ParsedUpdateData> {
     let (input, _) = tag("Foul Ball. ").parse(input)?;
     let (input, _) = parse_whole_number.parse(input)?;
     let (input, _) = tag("-").parse(input)?;
     let (input, _) = parse_whole_number.parse(input)?;
 
-    Ok((input, ParsedEventData::FoulBall))
+    Ok((input, ParsedUpdateData::FoulBall))
 }
 
-fn parse_strikeout(input: &str) -> ParserResult<ParsedEventData> {
+fn parse_strikeout(input: &str) -> ParserResult<ParsedUpdateData> {
     alt((
-        parse_terminated(" strikes out looking.").map(|_| ParsedEventData::StrikeoutLooking),
-        parse_terminated(" strikes out swinging.").map(|_| ParsedEventData::StrikeoutSwinging),
+        parse_terminated(" strikes out looking.").map(|_| ParsedUpdateData::StrikeoutLooking),
+        parse_terminated(" strikes out swinging.").map(|_| ParsedUpdateData::StrikeoutSwinging),
     ))
     .parse(input)
 }
 
-fn parse_strike(input: &str) -> ParserResult<ParsedEventData> {
+fn parse_strike(input: &str) -> ParserResult<ParsedUpdateData> {
     let (input, strike_type) = alt((
-        tag("Strike, swinging.").map(|_| ParsedEventData::StrikeSwinging),
-        tag("Strike, looking.").map(|_| ParsedEventData::StrikeLooking),
+        tag("Strike, swinging.").map(|_| ParsedUpdateData::StrikeSwinging),
+        tag("Strike, looking.").map(|_| ParsedUpdateData::StrikeLooking),
     ))
     .parse(input)?;
 

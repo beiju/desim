@@ -2,6 +2,7 @@ use blaseball_api::{chronicler, ChroniclerGameUpdate};
 use chrono::{DateTime, Utc};
 use enum_map::{enum_map, Enum, EnumMap};
 use rocket::futures::{stream, StreamExt};
+use std::iter;
 use uuid::Uuid;
 
 pub struct GameTeam {
@@ -31,15 +32,18 @@ impl GameTeam {
 }
 
 pub struct Game {
-    away: GameTeam,
-    home: GameTeam,
+    away_team: GameTeam,
+    home_team: GameTeam,
 }
 
 impl Game {
     pub async fn from_first_game_update(first_update: &ChroniclerGameUpdate) -> Self {
-        let away = GameTeam::fetch(first_update.data.away_team, first_update.timestamp).await;
-        let home = GameTeam::fetch(first_update.data.home_team, first_update.timestamp).await;
-        Game { away, home }
+        let away_team = GameTeam::fetch(first_update.data.away_team, first_update.timestamp).await;
+        let home_team = GameTeam::fetch(first_update.data.home_team, first_update.timestamp).await;
+        Game {
+            away_team,
+            home_team,
+        }
     }
 
     pub fn at_tick(&self, game_update: &ChroniclerGameUpdate) -> GameAtTick {
@@ -76,11 +80,9 @@ pub struct GameAtTick<'a> {
 
 impl<'a> GameAtTick<'a> {
     pub fn pitching_team(&self) -> &'a GameTeam {
-        // This has to be the wrong way round, right? And yet it's giving me the right pitcher.
-        // what
         match self.half {
-            HalfInning::Top => &self.game.away,
-            HalfInning::Bottom => &self.game.home,
+            HalfInning::Top => &self.game.home_team,
+            HalfInning::Bottom => &self.game.away_team,
         }
     }
 
@@ -92,8 +94,8 @@ impl<'a> GameAtTick<'a> {
 
     pub fn batting_team(&self) -> &'a GameTeam {
         match self.half {
-            HalfInning::Top => &self.game.away,
-            HalfInning::Bottom => &self.game.home,
+            HalfInning::Top => &self.game.away_team,
+            HalfInning::Bottom => &self.game.home_team,
         }
     }
 
@@ -106,6 +108,67 @@ impl<'a> GameAtTick<'a> {
         PlayerAtTick {
             player: &batting_lineup[index],
         }
+    }
+
+    fn batter_match_error(&self, update: &ChroniclerGameUpdate) -> Option<String> {
+        let team_batter_count = if update.data.top_of_inning {
+            update.data.away_team_batter_count
+        } else {
+            update.data.home_team_batter_count
+        };
+
+        // Ignore any wierd stuff that happens before team_batter_count gets its true value
+        if team_batter_count < 0 {
+            return None;
+        }
+
+        // Here's a fun pattern: let-else combined with if expressions
+        let Some(observed_batter_id) = (if update.data.top_of_inning {
+            update.data.away_batter
+        } else {
+            update.data.home_batter
+        }) else {
+            // Spurious mismatch -- we never compute a None. Ignore
+            return None;
+        };
+
+        let computed_batter_id = self.batter().player.id;
+        if computed_batter_id != observed_batter_id {
+            Some(format!("Batter did not match! Computed {computed_batter_id:?} but observed {observed_batter_id:?}"))
+        } else {
+            None
+        }
+    }
+
+    fn pitcher_match_error(&self, update: &ChroniclerGameUpdate) -> Option<String> {
+        let Some(observed_pitcher_id) = (if update.data.top_of_inning {
+            update.data.home_pitcher
+        } else {
+            update.data.away_batter
+        }) else {
+            // Spurious mismatch -- we never compute a None. Ignore
+            return None;
+        };
+
+        let computed_pitcher_id = self.pitcher().player.id;
+        if computed_pitcher_id != observed_pitcher_id {
+            Some(format!("Pitcher did not match! Computed {computed_pitcher_id:?} but observed {observed_pitcher_id:?}"))
+        } else {
+            None
+        }
+    }
+
+    pub fn validate(&self, game_update: &ChroniclerGameUpdate) -> (Vec<String>, Vec<String>) {
+        let errors = iter::empty()
+            .chain(self.batter_match_error(game_update))
+            .chain(self.pitcher_match_error(game_update))
+            .collect();
+
+        let warnings = iter::empty()
+            // Insert some warnings here
+            .collect();
+
+        (errors, warnings)
     }
 }
 
