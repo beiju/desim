@@ -21,26 +21,26 @@ pub enum RollConstrains {
     },
 }
 
-pub struct Roll {
+pub struct RollSpec {
     pub key: &'static str,
     pub constraints: RollConstrains,
 }
 
-impl Roll {
+impl RollSpec {
     pub fn new(key: &'static str, constraints: RollConstrains) -> Self {
         Self { key, constraints }
     }
 }
 
-fn standard_rolls() -> Vec<Roll> {
+fn standard_rolls() -> Vec<RollSpec> {
     let mut rolls = Vec::new();
-    rolls.push(Roll::new(
+    rolls.push(RollSpec::new(
         "party_time",
         RollConstrains::Unused {
             description: "Party time".to_string(),
         },
     ));
-    rolls.push(Roll::new(
+    rolls.push(RollSpec::new(
         "steal_fielder",
         RollConstrains::Unused {
             description: "Steal fielder".to_string(),
@@ -55,9 +55,9 @@ fn rolls_for_pitch(
     game: &sim::GameAtTick,
     in_strike_zone: Option<bool>,
     player_swung: Option<bool>,
-) -> Vec<Roll> {
+) -> Vec<RollSpec> {
     let mut rolls = standard_rolls();
-    rolls.push(Roll::new(
+    rolls.push(RollSpec::new(
         "mild_pitch",
         RollConstrains::AboveThreshold {
             threshold: th.mild_pitch(),
@@ -82,7 +82,7 @@ fn rolls_for_pitch(
                 .to_string(),
         },
     };
-    rolls.push(Roll::new("in_strike_zone", strike_zone_constraint));
+    rolls.push(RollSpec::new("in_strike_zone", strike_zone_constraint));
     let swing_constraint = match player_swung {
         None => RollConstrains::Unconstrained {
             description: "Did player swing?".to_string(),
@@ -98,7 +98,7 @@ fn rolls_for_pitch(
             negative_description: "Expected player to not swing, but they did".to_string(),
         },
     };
-    rolls.push(Roll::new("swing", swing_constraint));
+    rolls.push(RollSpec::new("swing", swing_constraint));
 
     rolls
 }
@@ -108,7 +108,7 @@ fn rolls_for_contact(
     game: &sim::GameAtTick,
     in_strike_zone: Option<bool>,
     made_contact: Option<bool>,
-) -> Vec<Roll> {
+) -> Vec<RollSpec> {
     let mut rolls = rolls_for_pitch(th, game, in_strike_zone, Some(true));
     let constrains = match made_contact {
         None => RollConstrains::Unconstrained {
@@ -125,7 +125,7 @@ fn rolls_for_contact(
             negative_description: "Expected swing to not make contact, but it did".to_string(),
         },
     };
-    rolls.push(Roll::new("contact", constrains));
+    rolls.push(RollSpec::new("contact", constrains));
 
     rolls
 }
@@ -134,9 +134,9 @@ fn rolls_for_foul(
     th: &Thresholds,
     game: &sim::GameAtTick,
     in_strike_zone: Option<bool>,
-) -> Vec<Roll> {
+) -> Vec<RollSpec> {
     let mut rolls = rolls_for_contact(th, game, in_strike_zone, Some(true));
-    rolls.push(Roll::new(
+    rolls.push(RollSpec::new(
         "fair",
         RollConstrains::Unconstrained {
             description: "Fair or foul?".to_string(),
@@ -150,7 +150,7 @@ pub fn rolls_for_update(
     update: &ParsedUpdate,
     th: &Thresholds,
     game: &sim::GameAtTick,
-) -> Vec<Roll> {
+) -> Vec<RollSpec> {
     match update.data {
         // No rolls for these updates
         ParsedUpdateData::Empty => vec![],

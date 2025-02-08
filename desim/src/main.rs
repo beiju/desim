@@ -150,7 +150,7 @@ async fn fragment(
 
     // Start the engine
     let mut engine = Engine::new(rng);
-
+    
     // I am implementing a poor man's group_by. The man is very poor.
     let mut days = Vec::new();
     while let Some(update) = game_updates.next().await {
@@ -161,7 +161,7 @@ async fn fragment(
             update.data.id,
             update.timestamp,
         );
-        if let Some(new_day) = engine.next_update(update, th, &mut rng).await? {
+        if let Some(new_day) = engine.next_update(update, th).await? {
             days.push(new_day);
         }
     }

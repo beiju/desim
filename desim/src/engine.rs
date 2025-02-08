@@ -1,10 +1,9 @@
 use crate::rng::Rng;
-use crate::rolls::{rolls_for_update, RollConstrains};
+use crate::rolls::{rolls_for_update, RollConstrains, RollSpec};
 use crate::thresholds::Thresholds;
 use crate::{sim, update_parser, RollConstraintOutcome};
 use blaseball_api::ChroniclerGameUpdate;
 use chrono::{DateTime, Utc};
-use rocket::futures::{stream, StreamExt};
 use serde::Serialize;
 use std::cmp::Ordering;
 use std::collections::hash_map::Entry;
@@ -87,6 +86,72 @@ pub struct DayContext {
     ticks: Vec<TickContext>,
 }
 
+fn run_roll(
+    roll_spec: RollSpec,
+    rng: &mut Rng,
+) -> RollContext {
+    // RNG step-before-value is the convention Resim set
+    rng.step(1);
+    let roll = rng.value();
+    let (outcome, description) = match roll_spec.constraints {
+        RollConstrains::Unconstrained { description } => (
+            RollConstraintOutcome::TrivialSuccess,
+            format!("{description}: Unconstrained ({roll})"),
+        ),
+        RollConstrains::BelowThreshold {
+            threshold,
+            negative_description,
+            positive_description,
+        } => {
+            if roll < threshold {
+                (
+                    RollConstraintOutcome::Success,
+                    format!(
+                        "{positive_description} ({roll} < {threshold})"
+                    ),
+                )
+            } else {
+                (
+                    RollConstraintOutcome::Failure,
+                    format!(
+                        "{negative_description} ({roll} !< {threshold})"
+                    ),
+                )
+            }
+        }
+        RollConstrains::AboveThreshold {
+            threshold,
+            negative_description,
+            positive_description,
+        } => {
+            if roll > threshold {
+                (
+                    RollConstraintOutcome::Success,
+                    format!(
+                        "{positive_description} ({roll} > {threshold})"
+                    ),
+                )
+            } else {
+                (
+                    RollConstraintOutcome::Failure,
+                    format!(
+                        "{negative_description} ({roll} !> {threshold})"
+                    ),
+                )
+            }
+        }
+        RollConstrains::Unused { description } => (
+            RollConstraintOutcome::Unused,
+            format!("{description} (Unused: {roll})"),
+        ),
+    };
+    RollContext {
+        outcome,
+        description,
+        roll,
+    }
+}
+
 fn run_game_tick(
     game: &sim::Game,
     update: ChroniclerGameUpdate,
@@ -102,76 +167,9 @@ fn run_game_tick(
     );
     match update_parser::parse_update(&update) {
         Ok(parsed_update) => {
-            let roll_specs = rolls_for_update(&parsed_update, th, &game_at_tick);
-            info!(
-                "{game_label} at {}: {} rolls",
-                update.timestamp,
-                roll_specs.len()
-            );
-            let rolls = roll_specs
+            let rolls = rolls_for_update(&parsed_update, th, &game_at_tick)
                 .into_iter()
-                .map(|roll| {
-                    // RNG step-before-value is the convention Resim set
-                    rng.step(1);
-                    let roll_outcome = rng.value();
-                    let (outcome, description) = match roll.constraints {
-                        RollConstrains::Unconstrained { description } => (
-                            RollConstraintOutcome::TrivialSuccess,
-                            format!("{description}: Unconstrained ({roll_outcome})"),
-                        ),
-                        RollConstrains::BelowThreshold {
-                            threshold,
-                            negative_description,
-                            positive_description,
-                        } => {
-                            if roll_outcome < threshold {
-                                (
-                                    RollConstraintOutcome::Success,
-                                    format!(
-                                        "{positive_description} ({roll_outcome} < {threshold})"
-                                    ),
-                                )
-                            } else {
-                                (
-                                    RollConstraintOutcome::Failure,
-                                    format!(
-                                        "{negative_description} ({roll_outcome} !< {threshold})"
-                                    ),
-                                )
-                            }
-                        }
-                        RollConstrains::AboveThreshold {
-                            threshold,
-                            negative_description,
-                            positive_description,
-                        } => {
-                            if roll_outcome > threshold {
-                                (
-                                    RollConstraintOutcome::Success,
-                                    format!(
-                                        "{positive_description} ({roll_outcome} > {threshold})"
-                                    ),
-                                )
-                            } else {
-                                (
-                                    RollConstraintOutcome::Failure,
-                                    format!(
-                                        "{negative_description} ({roll_outcome} !> {threshold})"
-                                    ),
-                                )
-                            }
-                        }
-                        RollConstrains::Unused { description } => (
-                            RollConstraintOutcome::Unused,
-                            format!("{description} (Unused: {roll_outcome})"),
-                        ),
-                    };
-                    RollContext {
-                        outcome,
-                        description,
-                        roll: roll_outcome,
-                    }
-                })
+                .map(|roll_spec| run_roll(roll_spec, rng))
                 .collect();
 
             GameTickContext {
@@ -209,7 +207,6 @@ impl Engine {
         &mut self,
         update: ChroniclerGameUpdate,
         th: &Thresholds,
-        rng: &mut Rng,
     ) -> Result<Option<DayContext>, EngineFatalError> {
         // Get any pending update (the first is arbitrarily chosen) to compare
         // its timestamp against the new update
@@ -233,7 +230,7 @@ impl Engine {
                     // process all pending updates and then store the new one
                     let updates_to_process =
                         std::mem::replace(&mut self.pending_updates, vec![update]);
-                    self.tick(updates_to_process, th, rng).await
+                    self.tick(updates_to_process, th).await
                 }
             }
         } else {
@@ -247,7 +244,6 @@ impl Engine {
         &mut self,
         updates: Vec<ChroniclerGameUpdate>,
         th: &Thresholds,
-        rng: &mut Rng,
     ) -> Result<Option<DayContext>, EngineFatalError> {
         // In the future, this will be responsible for figuring out tick order.
         // For now I'm only feeding it ticks with one event at a time.
@@ -279,7 +275,9 @@ impl Engine {
                 }
                 Ordering::Greater => {
                     // If we received an event for a new day, extract and return
-                    // the previous day
+                    // the previous day. Also drop all the `sim::Game`s for the
+                    // previous day; they will never be used again
+                    self.active_games.clear();
                     Ok(std::mem::replace(&mut self.current_day, None))
                 }
             }
@@ -314,14 +312,14 @@ impl Engine {
         for update in updates {
             // Can't use or_insert_with because fetching a game is async
             let game_update = match self.active_games.entry(update.game_id) {
-                Entry::Occupied(mut entry) => run_game_tick(entry.get_mut(), update, th, rng),
+                Entry::Occupied(mut entry) => run_game_tick(entry.get_mut(), update, th, &mut self.rng),
                 Entry::Vacant(entry) => {
                     // The first few updates of a game can be skipped and nothing bad happens
                     // (because they don't do any rolls), but if we're starting a game later than
                     // approximately play count 3 something has gone wrong
                     assert!(update.data.play_count < 3);
                     let game_at_tick = sim::Game::from_first_game_update(&update).await;
-                    run_game_tick(entry.insert(game_at_tick), update, th, rng)
+                    run_game_tick(entry.insert(game_at_tick), update, th, &mut self.rng)
                 }
             };
 

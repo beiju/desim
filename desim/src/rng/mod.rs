@@ -8,7 +8,9 @@ use xs128p::{from_double_bits, from_double_bits_v10, xs128p, xs128p_rev, Xs128pS
 
 type BlockOffset = i32;
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+// I removed the Copy bound because it's important to know when an Rng object
+// is copied, since the copy and the original won't share state
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Rng {
     pub state: Xs128pState,
     pub offset: BlockOffset,
