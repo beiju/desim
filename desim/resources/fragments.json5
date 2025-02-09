@@ -1,11 +1,17 @@
 [
   {
-    "label": "S12 finals",
-    "start_time": "2021-03-06T20:00:00.749Z",
-    "end_time": "2021-03-06T23:50:00.000Z",
-    "rng": "(15344562644745423164, 10882960106955666841)+23",
+    label: "S12 finals",
+    start_time: "2021-03-06T20:00:00.749Z",
+    end_time: "2021-03-06T23:50:00.000Z",
+    rng: "(15344562644745423164, 10882960106955666841)+23",
     // These would normally belong to the LetsGo tick, but for the first game 
     // of this fragment Chron missed that update
-    "initial_step": 2,
+    initial_step: 2,
+    roll_stream: {
+      file: "s11-2021-03-06T19:26:00Z.ndjson",
+      // This is from a resim fragment that starts earlier, but I moved 
+      // the values of `start_time` and `rng` forward to the next game start
+      skip_lines: 107, 
+    }
   }
 ]

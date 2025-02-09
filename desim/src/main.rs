@@ -1,5 +1,6 @@
 #[macro_use]
 extern crate rocket;
+mod checker;
 mod engine;
 mod fragments;
 mod rng;
@@ -145,12 +146,10 @@ async fn fragment(
     // Gather data
     let mut game_updates = pin!(chronicler::game_updates(fragment.start_time)
         .take_while(|update| future::ready(update.timestamp < fragment.end_time)));
-    let mut rng = fragment.rng.clone();
-    rng.step(fragment.initial_step);
 
     // Start the engine
-    let mut engine = Engine::new(rng);
-    
+    let mut engine = Engine::new(fragment.rng.clone());
+
     let mut days = Vec::new();
     while let Some(update) = game_updates.next().await {
         debug!(

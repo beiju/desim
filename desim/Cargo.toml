@@ -17,3 +17,5 @@ nom="8.0.0"
 json5 = "0.4.1"
 uuid = { version = "1.12.1", features = ["v4"] }
 enum-map = "2.7.3"
+flate2 = "1.0.35"
+tar = "0.4.43"
