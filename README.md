@@ -89,10 +89,30 @@ The major concern for the back end currently is getting resim-compatibility for
 days when only a single game is running (currently, S12D113). resim 
 compatibility is indicated by the ✅ and ❌ marks at right side of the rolls
 list: we want those to all be ✅. The workflow here is to find the first ❌, 
-figure out why it's an ❌, make it a ✅, and repeat.  
+figure out why it's an ❌, make it a ✅, and repeat.
 
-The resim info that's shown when you hover over the ❌ is helpful for this. Here 
-is some general advice on what the types of issue mean:
+Firstly, it's still early in the process and there are still many update types
+we don't parse. If any of those happen it will almost certainly throw off all
+subsequent rolls because we won't know how long this update is supposed to be.
+Any errors after an unparsed update should be ignored.
+
+Unparsed updates have a big red error that starts with "Parse error: Couldn't 
+parse description". To fix a parse error, start at the `parse_description` 
+function in `update_parser.rs`. If the update that errored should have been 
+parsed by one of the existing members of the `alt` there, fix that parser. 
+Otherwise, add a new sub-parser to the `alt` to do the parsing. If you need to 
+add a new event type, or new fields to an existing event type, the enum to add
+to is `ParsedUpdateData`. We use [nom][nom] for parsing. 
+[This][choosing-a-combinator] page is useful for figuring out what nom construct
+to use to parse something.
+
+[nom]: https://docs.rs/nom/latest/nom/
+[choosing-a-combinator]: https://github.com/rust-bakery/nom/blob/main/doc/choosing_a_combinator.md
+
+If there's not a parse error, the next most likely explanation is that our 
+roll prediction is wrong. The resim info that's shown when you hover over the 
+❌ in the right column is helpful for this. Here is some general advice on what 
+the types of issue mean:
 
 - If the Roll is completely wrong, that means we got out of sync with resim. 
   Normally this is caused by a previous error and the solution is to fix that.
