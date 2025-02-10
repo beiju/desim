@@ -10,7 +10,7 @@ tick ordering, something that resim gets for free from the Feed.
 
 [resim]: https://github.com/xSke/resim
 
-Desim is in very early development. Currently it's just trying to match Resim's 
+Desim is in very early development. Currently it's just trying to match resim's 
 output when only a single game is running, and therefore when we don't have to
 worry about game tick ordering.
 
@@ -85,13 +85,13 @@ Significant locations are:
 Contributing (Back-end)
 -----------------------
 
-The major concern for the back end currently is getting Resim-compatibility for
-days when only a single game is running (currently, S12D113). Resim 
+The major concern for the back end currently is getting resim-compatibility for
+days when only a single game is running (currently, S12D113). resim 
 compatibility is indicated by the ✅ and ❌ marks at right side of the rolls
 list: we want those to all be ✅. The workflow here is to find the first ❌, 
 figure out why it's an ❌, make it a ✅, and repeat.  
 
-The Resim info that's shown when you hover over the ❌ is helpful for this. Here 
+The resim info that's shown when you hover over the ❌ is helpful for this. Here 
 is some general advice on what the types of issue mean:
 
 - If the Roll is completely wrong, that means we got out of sync with resim. 
@@ -137,7 +137,7 @@ is some general advice on what the types of issue mean:
   incorrectly and the front end needs to be fixed.
 
 Resim mismatch issues are not tracked in the issue tracker since they're so 
-transient. More fundamental backend issues are tracked in [this tag]
-[backend-issues] and help is appreciated.
+transient (ideally). More fundamental backend issues are tracked in 
+[this tag][backend-issues] and help is appreciated.
 
 [backend-issues]: https://github.com/beiju/desim/issues?q=state%3Aopen%20label%3A%22back-end%22
