@@ -1,13 +1,15 @@
+use crate::fragments::{CheckRoll, RollStream};
 use crate::rng::Rng;
 use crate::rolls::{rolls_for_update, RollConstrains, RollSpec};
 use crate::thresholds::Thresholds;
 use crate::{sim, update_parser, RollConstraintOutcome};
 use blaseball_api::ChroniclerGameUpdate;
 use chrono::{DateTime, Utc};
+use nom::combinator::Opt;
 use serde::Serialize;
 use std::cmp::Ordering;
 use std::collections::hash_map::Entry;
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use thiserror::Error;
 use uuid::Uuid;
 
@@ -20,6 +22,8 @@ use uuid::Uuid;
 //   the purpose of rendering
 pub struct Engine {
     rng: Rng,
+    // Rolls from resim to check against
+    check_rolls: Option<RollStream>,
     active_games: HashMap<Uuid, sim::Game>,
     // This stores a list of game updates with identical timestamps which have
     // not yet been processed. As soon as an update with a future timestamp is
@@ -56,13 +60,28 @@ pub enum EngineFatalError {
         new_day: (i64, i64),
         in_game: Uuid,
     },
+
+    #[error(
+        "Check rolls were provided, but there were not enough to run the whole \
+        fragment"
+    )]
+    RanOutOfCheckRolls,
+}
+
+#[derive(Serialize)]
+struct ResimMatchContext {
+    rolls_match: bool,
+    passed_match: bool,
+    thresholds_match: bool,
 }
 
 #[derive(Serialize)]
 struct RollContext {
     outcome: RollConstraintOutcome,
     description: String,
+    rng_state: String,
     roll: f64,
+    resim_match: Option<ResimMatchContext>,
 }
 
 #[derive(Serialize)]
@@ -88,17 +107,44 @@ pub struct DayContext {
     ticks: Vec<TickContext>,
 }
 
-fn run_roll(
-    roll_spec: RollSpec,
-    rng: &mut Rng,
-) -> RollContext {
+fn run_check(
+    roll_value: f64,
+    // TODO This should have some sort of trace so we know when the threshold
+    //   was dependent on an earlier roll outcome
+    threshold: Option<f64>,
+    passed: Option<bool>,
+    check: Option<CheckRoll>,
+) -> Option<ResimMatchContext> {
+    // I normally dislike ?-on-option because it hides bugs but I have to admit
+    // it's exactly what I need here
+    let check = check?;
+
+    Some(ResimMatchContext {
+        // One of the rare cases where == on a float is not just OK but actively
+        // desired
+        rolls_match: check.roll == roll_value,
+        // check.passed and passed are both Options, but I think we want them to
+        // be None together and Some together
+        passed_match: check.passed == passed,
+        // Same for thresholds
+        thresholds_match: check.threshold == threshold,
+    })
+}
+
+fn run_roll(roll_spec: RollSpec, rng: &mut Rng, check_roll: Option<CheckRoll>) -> RollContext {
     // RNG step-before-value is the convention Resim set
     rng.step(1);
     let roll = rng.value();
-    let (outcome, description) = match roll_spec.constraints {
-        RollConstrains::Unconstrained { description } => (
+    let state_string = rng.state_string();
+    let (outcome, description, resim_match) = match roll_spec.constraints {
+        RollConstrains::Unconstrained {
+            threshold,
+            description,
+        } => (
             RollConstraintOutcome::TrivialSuccess,
             format!("{description}: Unconstrained ({roll})"),
+            // Unconstrained by definition means we don't know whether it passed
+            run_check(roll, threshold, None, check_roll),
         ),
         RollConstrains::BelowThreshold {
             threshold,
@@ -108,16 +154,14 @@ fn run_roll(
             if roll < threshold {
                 (
                     RollConstraintOutcome::Success,
-                    format!(
-                        "{positive_description} ({roll} < {threshold})"
-                    ),
+                    format!("{positive_description} ({roll} < {threshold})"),
+                    run_check(roll, Some(threshold), Some(true), check_roll),
                 )
             } else {
                 (
                     RollConstraintOutcome::Failure,
-                    format!(
-                        "{negative_description} ({roll} !< {threshold})"
-                    ),
+                    format!("{negative_description} ({roll} !< {threshold})"),
+                    run_check(roll, Some(threshold), Some(false), check_roll),
                 )
             }
         }
@@ -129,76 +173,41 @@ fn run_roll(
             if roll > threshold {
                 (
                     RollConstraintOutcome::Success,
-                    format!(
-                        "{positive_description} ({roll} > {threshold})"
-                    ),
+                    format!("{positive_description} ({roll} > {threshold})"),
+                    run_check(roll, Some(threshold), Some(false), check_roll),
                 )
             } else {
                 (
                     RollConstraintOutcome::Failure,
-                    format!(
-                        "{negative_description} ({roll} !> {threshold})"
-                    ),
+                    format!("{negative_description} ({roll} !> {threshold})"),
+                    run_check(roll, Some(threshold), Some(true), check_roll),
                 )
             }
         }
-        RollConstrains::Unused { description } => (
+        RollConstrains::Unused {
+            threshold,
+            description,
+        } => (
             RollConstraintOutcome::Unused,
             format!("{description} (Unused: {roll})"),
+            run_check(roll, threshold, None, check_roll),
         ),
     };
+
     RollContext {
         outcome,
         description,
+        rng_state: state_string,
         roll,
-    }
-}
-
-fn run_game_tick(
-    game: &sim::Game,
-    update: ChroniclerGameUpdate,
-    th: &Thresholds,
-    rng: &mut Rng,
-) -> GameTickContext {
-    let game_at_tick = game.at_tick(&update);
-
-    let (mut errors, warnings) = game_at_tick.validate(&update);
-    let game_label = format!(
-        "{} @ {}",
-        update.data.away_team_nickname, update.data.home_team_nickname
-    );
-    match update_parser::parse_update(&update) {
-        Ok(parsed_update) => {
-            let rolls = rolls_for_update(&parsed_update, th, &game_at_tick)
-                .into_iter()
-                .map(|roll_spec| run_roll(roll_spec, rng))
-                .collect();
-
-            GameTickContext {
-                game_label,
-                description: update.data.last_update,
-                errors,
-                warnings,
-                rolls,
-            }
-        }
-        Err(err) => {
-            errors.push(format!("Parse error: {err}"));
-            GameTickContext {
-                game_label,
-                description: update.data.last_update,
-                errors,
-                warnings,
-                rolls: Vec::new(),
-            }
-        }
+        resim_match,
     }
 }
 
 impl Engine {
-    pub fn new(rng: Rng) -> Engine {
+    pub fn new(rng: Rng, check_rolls: Option<RollStream>) -> Engine {
         Engine {
             rng,
+            check_rolls,
             active_games: HashMap::new(),
             pending_updates: Vec::new(),
             current_day: None,
@@ -280,7 +289,7 @@ impl Engine {
                     // If we received an event for a new day, extract and return
                     // the previous day. Also drop all the `sim::Game`s for the
                     // previous day; they will never be used again. Also also
-                    // reset the tick number. Maybe I should encapsulate all 
+                    // reset the tick number. Maybe I should encapsulate all
                     // this per-day stuff in a separate struct.
                     self.tick_number = 0;
                     self.active_games.clear();
@@ -318,14 +327,26 @@ impl Engine {
         for update in updates {
             // Can't use or_insert_with because fetching a game is async
             let game_update = match self.active_games.entry(update.game_id) {
-                Entry::Occupied(mut entry) => run_game_tick(entry.get_mut(), update, th, &mut self.rng),
+                Entry::Occupied(mut entry) => run_game_tick(
+                    entry.get_mut(),
+                    update,
+                    th,
+                    &mut self.rng,
+                    &mut self.check_rolls,
+                )?,
                 Entry::Vacant(entry) => {
                     // The first few updates of a game can be skipped and nothing bad happens
                     // (because they don't do any rolls), but if we're starting a game later than
                     // approximately play count 3 something has gone wrong
                     assert!(update.data.play_count < 3);
                     let game_at_tick = sim::Game::from_first_game_update(&update).await;
-                    run_game_tick(entry.insert(game_at_tick), update, th, &mut self.rng)
+                    run_game_tick(
+                        entry.insert(game_at_tick),
+                        update,
+                        th,
+                        &mut self.rng,
+                        &mut self.check_rolls,
+                    )?
                 }
             };
 
@@ -338,7 +359,61 @@ impl Engine {
             games: game_updates,
         });
 
-        self.tick_number += 1; 
+        self.tick_number += 1;
         Ok(finished_day)
+    }
+}
+
+// Sadly, this can't be an
+fn run_game_tick(
+    game: &sim::Game,
+    update: ChroniclerGameUpdate,
+    th: &Thresholds,
+    rng: &mut Rng,
+    check_rolls: &mut Option<RollStream>,
+) -> Result<GameTickContext, EngineFatalError> {
+    let game_at_tick = game.at_tick(&update);
+
+    let (mut errors, warnings) = game_at_tick.validate(&update);
+    let game_label = format!(
+        "{} @ {}",
+        update.data.away_team_nickname, update.data.home_team_nickname
+    );
+    match update_parser::parse_update(&update) {
+        Ok(parsed_update) => {
+            let rolls = rolls_for_update(&parsed_update, th, &game_at_tick)
+                .into_iter()
+                .map(|roll_spec| {
+                    if let Some(check_rolls) = check_rolls {
+                        // TODO This is the least efficient way to do it
+                        if let Some(check_roll) = check_rolls.pop_front() {
+                            Ok(run_roll(roll_spec, rng, Some(check_roll)))
+                        } else {
+                            Err(EngineFatalError::RanOutOfCheckRolls)
+                        }
+                    } else {
+                        Ok(run_roll(roll_spec, rng, None))
+                    }
+                })
+                .collect::<Result<_, _>>()?;
+
+            Ok(GameTickContext {
+                game_label,
+                description: update.data.last_update,
+                errors,
+                warnings,
+                rolls,
+            })
+        }
+        Err(err) => {
+            errors.push(format!("Parse error: {err}"));
+            Ok(GameTickContext {
+                game_label,
+                description: update.data.last_update,
+                errors,
+                warnings,
+                rolls: Vec::new(),
+            })
+        }
     }
 }

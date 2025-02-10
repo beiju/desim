@@ -68,9 +68,35 @@
                     {% if game_tick.rolls %}
                     {% for roll in game_tick.rolls %}
                     <tr>
-                        <td class="tick-indent"></td>
-                        <td colspan="3" class="roll {{ roll.outcome }}">{{ roll.description }}</td>
+                        <td class="rng-sibr-dev-link">
+                            <a href="https://rng.sibr.dev/?state={{ roll.rng_state }}">🎲</a>
+                        </td>
+                        <td colspan="2" class="roll {{ roll.outcome }}">
+                            {{ roll.description }}
+                        </td>
                         <td class="roll {{ roll.outcome }}">{{ roll.roll }}</td>
+                        {% if roll.resim_match %}
+                        <td class="resim-match">
+                          {% if roll.resim_match.rolls_match and roll.resim_match.passed_match and roll.resim_match.thresholds_match %}
+                          ✅
+                          {% else %}
+                          ❌
+                          {% endif %}
+                        <div class="resim-match-tooltip">
+                            <ul class="resim-match-elements">
+                                <li class="resim-match-element {% if roll.resim_match.rolls_match %}success{% else %}failure{% endif %}">
+                                    Roll {% if roll.resim_match.rolls_match %}matches{% else %}does not match{% endif %}
+                                </li>
+                                <li class="resim-match-element {% if roll.resim_match.passed_match %}success{% else %}failure{% endif %}">
+                                    Passed {% if roll.resim_match.passed_match %}matches{% else %}does not match{% endif %}
+                                </li>
+                                <li class="resim-match-element {% if roll.resim_match.thresholds_match %}success{% else %}failure{% endif %}">
+                                    Threshold {% if roll.resim_match.thresholds_match %}matches{% else %}does not match{% endif %}
+                                </li>
+                            </ul>
+                        </div>
+                        </td>
+                        {% endif %}
                     </tr>
                     {% endfor %}
                     {% else %}

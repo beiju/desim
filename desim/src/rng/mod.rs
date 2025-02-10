@@ -191,6 +191,10 @@ impl Rng {
             from_double_bits(self.state.0 >> 12)
         }
     }
+
+    pub fn state_string(&self) -> String {
+        format!("({},{})+{}", self.state.0, self.state.1, self.offset)
+    }
 }
 
 #[cfg(test)]

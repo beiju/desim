@@ -3,7 +3,7 @@ use chrono::{DateTime, Utc};
 use flate2::bufread::GzDecoder;
 use itertools::Itertools;
 use serde::Deserialize;
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::io::{BufRead, BufReader, Read};
 use tar::Archive;
 use thiserror::Error;
@@ -17,20 +17,15 @@ pub struct Fragment {
     pub start_time: DateTime<Utc>,
     pub end_time: DateTime<Utc>,
     pub rng: Rng,
-    pub check_rolls: Option<Vec<CheckRoll>>,
+    pub check_rolls: Option<RollStream>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
-#[serde(untagged)]
-pub enum CheckRoll {
-    Roll {
-        label: String,
-        roll: f64,
-        threshold: Option<f64>,
-    },
-    Correction {
-        correction: i32,
-    },
+pub struct CheckRoll {
+    pub label: String,
+    pub roll: f64,
+    pub passed: Option<bool>,
+    pub threshold: Option<f64>,
 }
 
 #[derive(Debug, Error)]
@@ -68,7 +63,7 @@ struct RollStreamSpec {
     pub skip_lines: Option<usize>,
 }
 
-type RollStream = Vec<CheckRoll>;
+pub type RollStream = VecDeque<CheckRoll>;
 
 pub fn load_fragments() -> Result<Fragments, LoadFragmentsError> {
     let fragments_json5 = include_str!(concat!(
@@ -101,7 +96,7 @@ fn load_roll_streams(
 ) -> Result<HashMap<String, RollStream>, LoadFragmentsError> {
     let raw_data = include_bytes!(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/resources/roll-streams.tar.gz"
+        "/resources/roll_streams.tar.gz"
     ));
     let gzip_decoder = GzDecoder::new(&raw_data[..]);
     let mut streams = Archive::new(gzip_decoder);
@@ -169,7 +164,7 @@ fn fragment_from_spec(
 fn get_roll_stream(
     spec: RollStreamSpec,
     roll_streams: &mut HashMap<String, RollStream>,
-) -> Result<Vec<CheckRoll>, LoadFragmentsError> {
+) -> Result<RollStream, LoadFragmentsError> {
     roll_streams
         .remove(spec.file.as_str())
         .ok_or_else(|| LoadFragmentsError::MissingRollStream(spec.file))

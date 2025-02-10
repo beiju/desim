@@ -2,8 +2,12 @@ use crate::sim;
 use crate::thresholds::Thresholds;
 use crate::update_parser::{ParsedUpdate, ParsedUpdateData};
 
+// TODO Refactor this, it no longer does a good job of serving its purpose
 pub enum RollConstrains {
     Unconstrained {
+        // We may know the threshold without knowing whether the roll should
+        // be above or below it
+        threshold: Option<f64>,
         description: String,
     },
     BelowThreshold {
@@ -17,6 +21,9 @@ pub enum RollConstrains {
         negative_description: String,
     },
     Unused {
+        // We may know the threshold without knowing whether the roll should
+        // be above or below it
+        threshold: Option<f64>,
         description: String,
     },
 }
@@ -37,12 +44,14 @@ fn standard_rolls() -> Vec<RollSpec> {
     rolls.push(RollSpec::new(
         "party_time",
         RollConstrains::Unused {
+            threshold: None,
             description: "Party time".to_string(),
         },
     ));
     rolls.push(RollSpec::new(
         "steal_fielder",
         RollConstrains::Unused {
+            threshold: None,
             description: "Steal fielder".to_string(),
         },
     ));
@@ -68,6 +77,7 @@ fn rolls_for_pitch(
 
     let strike_zone_constraint = match in_strike_zone {
         None => RollConstrains::Unconstrained {
+            threshold: None,
             description: "In strike zone?".to_string(),
         },
         Some(true) => RollConstrains::BelowThreshold {
@@ -85,6 +95,7 @@ fn rolls_for_pitch(
     rolls.push(RollSpec::new("in_strike_zone", strike_zone_constraint));
     let swing_constraint = match player_swung {
         None => RollConstrains::Unconstrained {
+            threshold: None,
             description: "Did player swing?".to_string(),
         },
         Some(true) => RollConstrains::BelowThreshold {
@@ -112,6 +123,7 @@ fn rolls_for_contact(
     let mut rolls = rolls_for_pitch(th, game, in_strike_zone, Some(true));
     let constrains = match made_contact {
         None => RollConstrains::Unconstrained {
+            threshold: None,
             description: "Contact?".to_string(),
         },
         Some(true) => RollConstrains::BelowThreshold {
@@ -139,6 +151,7 @@ fn rolls_for_foul(
     rolls.push(RollSpec::new(
         "fair",
         RollConstrains::Unconstrained {
+            threshold: None,
             description: "Fair or foul?".to_string(),
         },
     ));

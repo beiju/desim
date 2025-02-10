@@ -148,7 +148,7 @@ async fn fragment(
         .take_while(|update| future::ready(update.timestamp < fragment.end_time)));
 
     // Start the engine
-    let mut engine = Engine::new(fragment.rng.clone());
+    let mut engine = Engine::new(fragment.rng.clone(), fragment.check_rolls.clone());
 
     let mut days = Vec::new();
     while let Some(update) = game_updates.next().await {
