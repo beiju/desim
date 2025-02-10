@@ -7,7 +7,6 @@
     </head>
     <body>
     <h1 class="page-title">Desim Error</h1>
-    <h2 class="error-header">{{ header }}</h2>
-    <pre class="error-body">{{ body }}</pre>
+    <pre class="error-body">{{ error }}</pre>
     </body>
 </html>

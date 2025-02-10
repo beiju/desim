@@ -40,6 +40,12 @@ enum RollConstraintOutcome {
 
 #[derive(Error, Debug)]
 pub enum DesimError {
+    #[error(
+        "Error test! This is not an actual error, but we're showing it using \
+        the error infrastructure to help test how errors are rendered"
+    )]
+    ErrorTest,
+
     #[error("Could not find fragment {0}")]
     UnknownFragment(usize),
 
@@ -58,35 +64,12 @@ pub enum DesimError {
 
 impl<'r, 'o: 'r> response::Responder<'r, 'o> for DesimError {
     fn respond_to(self, req: &'r Request<'_>) -> response::Result<'o> {
-        #[derive(Serialize)]
-        struct ErrContext<'a> {
-            header: &'a str,
-            body: Option<String>,
-        }
-
-        let context = match self {
-            DesimError::UnknownFragment(err) => ErrContext {
-                header: "Nonexistent fragment requested",
-                body: Some(err.to_string()),
+        let template = Template::render(
+            "error",
+            context! {
+                error: self.to_string(),
             },
-            DesimError::FailedToOpenChronCache(err) => ErrContext {
-                header: "Failed to open Chronicler cache",
-                body: Some(err.to_string()),
-            },
-            DesimError::DeserializeGameFailed(err) => ErrContext {
-                header: "Failed to deserialize game",
-                body: Some(err.to_string()),
-            },
-            DesimError::NoGameEventsThisDay => ErrContext {
-                header: "No game events this day",
-                body: None,
-            },
-            DesimError::EngineError(err) => ErrContext {
-                header: "Engine error",
-                body: Some(err.to_string()),
-            },
-        };
-        let template = Template::render("error", context);
+        );
         Response::build_from(template.respond_to(req)?).ok()
     }
 }
@@ -140,6 +123,11 @@ fn index(fragments: &rocket::State<Fragments>) -> Template {
     )
 }
 
+#[get("/error-test")]
+fn error_test() -> DesimError {
+    DesimError::ErrorTest
+}
+
 #[get("/fragment/<fragment_index>")]
 async fn fragment(
     fragment_index: usize,
@@ -150,11 +138,11 @@ async fn fragment(
         .get(fragment_index)
         .ok_or(DesimError::UnknownFragment(fragment_index))?;
 
-    let chron = Chronicler::new()
-        .map_err(DesimError::FailedToOpenChronCache)?;
+    let chron = Chronicler::new().map_err(DesimError::FailedToOpenChronCache)?;
 
     // Gather data
-    let mut game_updates = pin!(chron.game_updates(fragment.start_time)
+    let mut game_updates = pin!(chron
+        .game_updates(fragment.start_time)
         .take_while(|update| future::ready(update.timestamp < fragment.end_time)));
 
     // Start the engine
@@ -194,6 +182,6 @@ fn rocket() -> _ {
         .manage(fragments)
         .manage(th)
         .mount("/static", rocket::fs::FileServer::from(static_path))
-        .mount("/", routes![index, fragment])
+        .mount("/", routes![error_test, index, fragment])
         .attach(Template::fairing())
 }

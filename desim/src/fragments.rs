@@ -66,6 +66,8 @@ struct RollStreamSpec {
 pub type RollStream = VecDeque<CheckRoll>;
 
 pub fn load_fragments() -> Result<Fragments, LoadFragmentsError> {
+    // TODO Rocket is sensitive to cwd anyway, so there's no advantage to
+    //   including this file. Just load it from disk.
     let fragments_json5 = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/resources/fragments.json5"
@@ -94,6 +96,8 @@ pub fn load_fragments() -> Result<Fragments, LoadFragmentsError> {
 fn load_roll_streams(
     mut streams_to_load: HashMap<String, usize>,
 ) -> Result<HashMap<String, RollStream>, LoadFragmentsError> {
+    // TODO Rocket is sensitive to cwd anyway, so there's no advantage to
+    //   including this file and it bloats the binary. Just load it from disk.
     let raw_data = include_bytes!(concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/resources/roll_streams.tar.gz"
