@@ -71,6 +71,7 @@ pub enum EngineFatalError {
 struct FloatDigitsMismatchContext {
     pub matching_digits: String,
     pub mismatching_digits: String,
+    pub extra_digits: String,
 }
 
 #[derive(Serialize)]
@@ -170,6 +171,11 @@ impl FloatDigitsMismatchContext {
 
         // Build a string with the mismatched digits
         let mismatching_digits = resim_val_str[prefix_len..].to_string();
+        
+        // Build a string with any extra digits
+        let extra_digits = my_val_str.get(resim_val_str.len()..)
+            .unwrap_or("")
+            .to_string();
 
         // Conveniently we already have a string with the prefix at the start,
         // so just shorten it to fit. truncate mutates the original String
@@ -178,6 +184,7 @@ impl FloatDigitsMismatchContext {
         Some(Self {
             matching_digits: resim_val_str,
             mismatching_digits,
+            extra_digits,
         })
     }
 }

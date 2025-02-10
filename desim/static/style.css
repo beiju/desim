@@ -192,7 +192,6 @@ body {
     display: none;
     text-wrap: nowrap;
     border: 1px solid rgb(91, 91, 91);
-    padding: 10px 12px;
     border-radius: 10px;
 }
 
@@ -212,8 +211,50 @@ body {
     top: 8px;
 }
 
+.resim-match-header {
+    margin: 0;
+    background: linear-gradient(#444, #333);
+    font-weight: normal;
+    padding: 4px 12px 5px;
+    border-radius: 10px 10px 0 0;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.8);
+}
+
+.match .resim-match-header {
+    background: linear-gradient(#003100, #002800);
+}
+
+.nomatch .resim-match-header {
+    background: linear-gradient(#680000, #400000);
+}
+
 .resim-match-elements {
     list-style: none;
     padding: 0;
     margin: 0;
+}
+
+.resim-match-element {
+    padding: 3px 10px;
+}
+
+.resim-match-element.failure {
+    background: rgba(255, 0, 0, 0.05);
+}
+
+.resim-match-element.success {
+    background: rgba(0, 255, 0, 0.05);
+}
+
+.matching-digits {
+    color: #5edf5e;
+}
+
+.mismatching-digits {
+    color: #f45757;
+}
+
+.extra-digits {
+    color: #f45757;
+    text-decoration: line-through;
 }

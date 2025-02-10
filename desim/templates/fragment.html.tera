@@ -95,7 +95,7 @@
                                     {% if roll.resim_mismatch.rolls.match == "Matches" %}
                                     Roll matches
                                     {% elif roll.resim_mismatch.rolls.match == "Mismatch" %}
-                                    Expected Roll: <span class="matching-digits">{{ roll.resim_mismatch.rolls.matching_digits }}</span><span class="mismatching-digits">{{ roll.resim_mismatch.rolls.mismatching_digits }}</span>
+                                    Expected Roll: <span class="matching-digits">{{ roll.resim_mismatch.rolls.matching_digits }}</span><span class="mismatching-digits">{{ roll.resim_mismatch.rolls.mismatching_digits }}</span><span class="extra-digits">{{ roll.resim_mismatch.rolls.extra_digits }}</span>
                                     {% else %}
                                     TEMPLATE ERROR: Roll enum not fully covered
                                     {% endif %}
@@ -108,7 +108,7 @@
                                     {% elif roll.resim_mismatch.threshold.match == "MineMissingResimExists" %}
                                     Expected threshold {{ roll.resim_mismatch.threshold.resim }}
                                     {% elif roll.resim_mismatch.threshold.match == "Mismatch" %}
-                                    Expected threshold: <span class="matching-digits">{{ roll.resim_mismatch.threshold.matching_digits }}</span><span class="mismatching-digits">{{ roll.resim_mismatch.threshold.mismatching_digits }}</span>
+                                    Expected threshold: <span class="matching-digits">{{ roll.resim_mismatch.threshold.matching_digits }}</span><span class="mismatching-digits">{{ roll.resim_mismatch.threshold.mismatching_digits }}</span><span class="extra-digits">{{ roll.resim_mismatch.threshold.extra_digits }}</span>
                                     {% else %}
                                     TEMPLATE ERROR: Threshold enum not fully covered
                                     {% endif %}
