@@ -75,23 +75,56 @@
                             {{ roll.description }}
                         </td>
                         <td class="roll {{ roll.outcome }}">{{ roll.roll }}</td>
-                        {% if roll.resim_match %}
-                        <td class="resim-match">
-                          {% if roll.resim_match.rolls_match and roll.resim_match.passed_match and roll.resim_match.thresholds_match %}
+                        {% if roll.resim_mismatch %}
+                        <td class="resim-match {% if roll.resim_mismatch.rolls.match == "Matches" and roll.resim_mismatch.threshold.match == "Matches" and roll.resim_mismatch.passed.match == "Matches" %}match{% else %}nomatch{% endif %}">
+                            {% if roll.resim_mismatch.rolls.match == "Matches" and roll.resim_mismatch.threshold.match == "Matches" and roll.resim_mismatch.passed.match == "Matches" %}
                           ✅
                           {% else %}
                           ❌
                           {% endif %}
                         <div class="resim-match-tooltip">
+                            <h3 class="resim-match-header">
+                                {% if roll.resim_mismatch.rolls.match == "Matches" and roll.resim_mismatch.threshold.match == "Matches" and roll.resim_mismatch.passed.match == "Matches" %}
+                                    Matches resim result
+                                {% else %}
+                                    Does not match resim result
+                                {% endif %}
+                            </h3>
                             <ul class="resim-match-elements">
-                                <li class="resim-match-element {% if roll.resim_match.rolls_match %}success{% else %}failure{% endif %}">
-                                    Roll {% if roll.resim_match.rolls_match %}matches{% else %}does not match{% endif %}
+                                <li class="resim-match-element {% if roll.resim_mismatch.rolls.match == "Matches" %}success{% else %}failure{% endif %}">
+                                    {% if roll.resim_mismatch.rolls.match == "Matches" %}
+                                    Roll matches
+                                    {% elif roll.resim_mismatch.rolls.match == "Mismatch" %}
+                                    Expected Roll: <span class="matching-digits">{{ roll.resim_mismatch.rolls.matching_digits }}</span><span class="mismatching-digits">{{ roll.resim_mismatch.rolls.mismatching_digits }}</span>
+                                    {% else %}
+                                    TEMPLATE ERROR: Roll enum not fully covered
+                                    {% endif %}
                                 </li>
-                                <li class="resim-match-element {% if roll.resim_match.passed_match %}success{% else %}failure{% endif %}">
-                                    Passed {% if roll.resim_match.passed_match %}matches{% else %}does not match{% endif %}
+                                <li class="resim-match-element {% if roll.resim_mismatch.threshold.match == "Matches" %}success{% else %}failure{% endif %}">
+                                    {% if roll.resim_mismatch.threshold.match == "Matches" %}
+                                    Threshold matches
+                                    {% elif roll.resim_mismatch.threshold.match == "MineExistsResimMissing" %}
+                                    Expected no threshold
+                                    {% elif roll.resim_mismatch.threshold.match == "MineMissingResimExists" %}
+                                    Expected threshold {{ roll.resim_mismatch.threshold.resim }}
+                                    {% elif roll.resim_mismatch.threshold.match == "Mismatch" %}
+                                    Expected threshold: <span class="matching-digits">{{ roll.resim_mismatch.threshold.matching_digits }}</span><span class="mismatching-digits">{{ roll.resim_mismatch.threshold.mismatching_digits }}</span>
+                                    {% else %}
+                                    TEMPLATE ERROR: Threshold enum not fully covered
+                                    {% endif %}
                                 </li>
-                                <li class="resim-match-element {% if roll.resim_match.thresholds_match %}success{% else %}failure{% endif %}">
-                                    Threshold {% if roll.resim_match.thresholds_match %}matches{% else %}does not match{% endif %}
+                                <li class="resim-match-element {% if roll.resim_mismatch.passed.match == "Matches" %}success{% else %}failure{% endif %}">
+                                    {% if roll.resim_mismatch.passed.match == "Matches" %}
+                                    Passed matches
+                                    {% elif roll.resim_mismatch.passed.match == "MineExistsResimMissing" %}
+                                    Expected to not know whether the roll passed
+                                    {% elif roll.resim_mismatch.passed.match == "MineMissingResimExists" %}
+                                    Expected to know that passed={{ roll.resim_mismatch.passed.resim }}
+                                    {% elif roll.resim_mismatch.passed.match == "Mismatch" %}
+                                    Expected passed={{ roll.resim_mismatch.passed.resim }} but we predicted {{ roll.resim_mismatch.passed.mine }}
+                                    {% else %}
+                                    TEMPLATE ERROR: Passed enum not fully covered
+                                    {% endif %}
                                 </li>
                             </ul>
                         </div>
@@ -112,5 +145,6 @@
             </table>
         </section>
         {% endfor %}
+        <pre>{{ __tera_context }}</pre>
     </body>
 </html>

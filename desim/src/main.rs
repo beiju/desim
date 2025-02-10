@@ -12,7 +12,7 @@ mod update_parser;
 use crate::engine::{Engine, EngineFatalError};
 use crate::fragments::{load_fragments, Fragments};
 use crate::thresholds::Thresholds;
-use blaseball_api::chronicler;
+use blaseball_api::Chronicler;
 use chrono::{DateTime, Utc};
 use itertools::Itertools;
 use rocket::futures::StreamExt;
@@ -43,6 +43,9 @@ pub enum DesimError {
     #[error("Could not find fragment {0}")]
     UnknownFragment(usize),
 
+    #[error("Failed to open Chron cache location: {0}")]
+    FailedToOpenChronCache(blaseball_api::Error),
+
     #[error("Couldn't deserialize game: {0:?}")]
     DeserializeGameFailed(serde_json::Error),
 
@@ -64,6 +67,10 @@ impl<'r, 'o: 'r> response::Responder<'r, 'o> for DesimError {
         let context = match self {
             DesimError::UnknownFragment(err) => ErrContext {
                 header: "Nonexistent fragment requested",
+                body: Some(err.to_string()),
+            },
+            DesimError::FailedToOpenChronCache(err) => ErrContext {
+                header: "Failed to open Chronicler cache",
                 body: Some(err.to_string()),
             },
             DesimError::DeserializeGameFailed(err) => ErrContext {
@@ -143,8 +150,11 @@ async fn fragment(
         .get(fragment_index)
         .ok_or(DesimError::UnknownFragment(fragment_index))?;
 
+    let chron = Chronicler::new()
+        .map_err(DesimError::FailedToOpenChronCache)?;
+
     // Gather data
-    let mut game_updates = pin!(chronicler::game_updates(fragment.start_time)
+    let mut game_updates = pin!(chron.game_updates(fragment.start_time)
         .take_while(|update| future::ready(update.timestamp < fragment.end_time)));
 
     // Start the engine
@@ -159,7 +169,7 @@ async fn fragment(
             update.data.id,
             update.timestamp,
         );
-        if let Some(new_day) = engine.next_update(update, th).await? {
+        if let Some(new_day) = engine.next_update(update, th, &chron).await? {
             days.push(new_day);
             break; // TEMPORARY only render one day
         }

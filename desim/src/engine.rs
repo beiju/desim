@@ -3,13 +3,12 @@ use crate::rng::Rng;
 use crate::rolls::{rolls_for_update, RollConstrains, RollSpec};
 use crate::thresholds::Thresholds;
 use crate::{sim, update_parser, RollConstraintOutcome};
-use blaseball_api::ChroniclerGameUpdate;
+use blaseball_api::{Chronicler, ChroniclerGameUpdate};
 use chrono::{DateTime, Utc};
-use nom::combinator::Opt;
 use serde::Serialize;
 use std::cmp::Ordering;
 use std::collections::hash_map::Entry;
-use std::collections::{HashMap, VecDeque};
+use std::collections::HashMap;
 use thiserror::Error;
 use uuid::Uuid;
 
@@ -69,32 +68,41 @@ pub enum EngineFatalError {
 }
 
 #[derive(Serialize)]
-struct FloatMismatchContext {
+struct FloatDigitsMismatchContext {
     pub matching_digits: String,
     pub mismatching_digits: String,
 }
 
 #[derive(Serialize)]
+#[serde(tag = "match")]
+enum FloatMatchContext {
+    Matches,
+    Mismatch(FloatDigitsMismatchContext),
+}
+
+#[derive(Serialize)]
+#[serde(tag = "match")]
 enum OptionBoolMatchContext {
     Matches,
-    MineMissingResimExists(bool),
-    MineExistsResimMissing(bool),
+    MineMissingResimExists { resim: bool },
+    MineExistsResimMissing { mine: bool},
     Mismatch { mine: bool, resim: bool },
 }
 
 #[derive(Serialize)]
+#[serde(tag = "match")]
 enum OptionFloatMatchContext {
     Matches,
-    MineMissingResimExists(f64),
-    MineExistsResimMissing(f64),
-    Mismatch(FloatMismatchContext),
+    MineMissingResimExists { resim: f64},
+    MineExistsResimMissing { mine: f64},
+    Mismatch(FloatDigitsMismatchContext),
 }
 
 #[derive(Serialize)]
 struct ResimMatchContext {
-    rolls: Option<FloatMismatchContext>,
+    rolls: FloatMatchContext,
     passed: OptionBoolMatchContext,
-    thresholds: OptionFloatMatchContext,
+    threshold: OptionFloatMatchContext,
 }
 
 #[derive(Serialize)]
@@ -151,26 +159,35 @@ fn longest_common_char_prefix(a: &str, b: &str) -> usize {
     }
 }
 
-impl FloatMismatchContext {
+impl FloatDigitsMismatchContext {
     pub fn from_values(my_val: f64, resim_val: f64) -> Option<Self> {
         if my_val == resim_val {
             return None;
         }
-        let mut my_val_str = format!("{my_val}");
-        let resim_val_str = format!("{resim_val}");
+        let my_val_str = format!("{my_val}");
+        let mut resim_val_str = format!("{resim_val}");
         let prefix_len = longest_common_char_prefix(&my_val_str, &resim_val_str);
 
         // Build a string with the mismatched digits
-        let mismatching_digits = my_val_str[prefix_len..my_val_str.len()].to_string();
+        let mismatching_digits = resim_val_str[prefix_len..].to_string();
 
         // Conveniently we already have a string with the prefix at the start,
         // so just shorten it to fit. truncate mutates the original String
-        my_val_str.truncate(prefix_len);
+        resim_val_str.truncate(prefix_len);
 
         Some(Self {
-            matching_digits: my_val_str,
+            matching_digits: resim_val_str,
             mismatching_digits,
         })
+    }
+}
+
+impl FloatMatchContext {
+    pub fn from_values(my_val: f64, resim_val: f64) -> Self {
+        match FloatDigitsMismatchContext::from_values(my_val, resim_val) {
+            None => Self::Matches,
+            Some(mismatch) => Self::Mismatch(mismatch)
+        }
     }
 }
 
@@ -178,8 +195,8 @@ impl OptionBoolMatchContext {
     pub fn from_values(my_val: Option<bool>, resim_val: Option<bool>) -> Self {
         match (my_val, resim_val) {
             (None, None) => Self::Matches,
-            (Some(val), None) => Self::MineExistsResimMissing(val),
-            (None, Some(val)) => Self::MineMissingResimExists(val),
+            (Some(mine), None) => Self::MineExistsResimMissing { mine },
+            (None, Some(resim)) => Self::MineMissingResimExists { resim },
             (Some(mine), Some(resim)) if mine == resim => Self::Matches,
             (Some(mine), Some(resim)) => Self::Mismatch { mine, resim },
         }
@@ -190,9 +207,9 @@ impl OptionFloatMatchContext {
     pub fn from_values(my_val: Option<f64>, resim_val: Option<f64>) -> Self {
         match (my_val, resim_val) {
             (None, None) => Self::Matches,
-            (Some(val), None) => Self::MineExistsResimMissing(val),
-            (None, Some(val)) => Self::MineMissingResimExists(val),
-            (Some(mine), Some(resim)) => match FloatMismatchContext::from_values(mine, resim) {
+            (Some(mine), None) => Self::MineExistsResimMissing { mine },
+            (None, Some(resim)) => Self::MineMissingResimExists { resim },
+            (Some(mine), Some(resim)) => match FloatDigitsMismatchContext::from_values(mine, resim) {
                 None => Self::Matches,
                 Some(mismatch) => Self::Mismatch(mismatch),
             },
@@ -213,14 +230,9 @@ fn run_check(
     let check = check?;
 
     Some(ResimMatchContext {
-        // One of the rare cases where == on a float is not just OK but actively
-        // desired
-        rolls: FloatMismatchContext::from_values(roll_value, check.roll),
-        // check.passed and passed are both Options, but I think we want them to
-        // be None together and Some together
+        rolls: FloatMatchContext::from_values(roll_value, check.roll),
         passed: OptionBoolMatchContext::from_values(passed, check.passed),
-        // Same for thresholds
-        thresholds: OptionFloatMatchContext::from_values(threshold, check.threshold),
+        threshold: OptionFloatMatchContext::from_values(threshold, check.threshold),
     })
 }
 
@@ -229,7 +241,7 @@ fn run_roll(roll_spec: RollSpec, rng: &mut Rng, check_roll: Option<CheckRoll>) -
     rng.step(1);
     let roll = rng.value();
     let state_string = rng.state_string();
-    let (outcome, description, resim_match) = match roll_spec.constraints {
+    let (outcome, description, resim_mismatch) = match roll_spec.constraints {
         RollConstrains::Unconstrained {
             threshold,
             description,
@@ -292,7 +304,7 @@ fn run_roll(roll_spec: RollSpec, rng: &mut Rng, check_roll: Option<CheckRoll>) -
         description,
         rng_state: state_string,
         roll,
-        resim_mismatch: resim_match,
+        resim_mismatch,
     }
 }
 
@@ -312,6 +324,7 @@ impl Engine {
         &mut self,
         update: ChroniclerGameUpdate,
         th: &Thresholds,
+        chron: &Chronicler,
     ) -> Result<Option<DayContext>, EngineFatalError> {
         // Get any pending update (the first is arbitrarily chosen) to compare
         // its timestamp against the new update
@@ -335,7 +348,7 @@ impl Engine {
                     // process all pending updates and then store the new one
                     let updates_to_process =
                         std::mem::replace(&mut self.pending_updates, vec![update]);
-                    self.tick(updates_to_process, th).await
+                    self.tick(updates_to_process, th, chron).await
                 }
             }
         } else {
@@ -349,6 +362,7 @@ impl Engine {
         &mut self,
         updates: Vec<ChroniclerGameUpdate>,
         th: &Thresholds,
+        chron: &Chronicler,
     ) -> Result<Option<DayContext>, EngineFatalError> {
         // In the future, this will be responsible for figuring out tick order.
         // For now I'm only feeding it ticks with one event at a time.
@@ -432,7 +446,7 @@ impl Engine {
                     // (because they don't do any rolls), but if we're starting a game later than
                     // approximately play count 3 something has gone wrong
                     assert!(update.data.play_count < 3);
-                    let game_at_tick = sim::Game::from_first_game_update(&update).await;
+                    let game_at_tick = sim::Game::from_first_game_update(&update, chron).await;
                     run_game_tick(
                         entry.insert(game_at_tick),
                         update,

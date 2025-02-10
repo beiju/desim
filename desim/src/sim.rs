@@ -1,4 +1,4 @@
-use blaseball_api::{chronicler, ChroniclerGameUpdate};
+use blaseball_api::{Chronicler, ChroniclerGameUpdate};
 use chrono::{DateTime, Utc};
 use enum_map::{enum_map, Enum, EnumMap};
 use rocket::futures::{stream, StreamExt};
@@ -11,12 +11,12 @@ pub struct GameTeam {
 }
 
 impl GameTeam {
-    pub async fn fetch(team_id: Uuid, at_time: DateTime<Utc>) -> Self {
-        let team = chronicler::team(team_id, at_time)
+    pub async fn fetch(team_id: Uuid, at_time: DateTime<Utc>, chron: &Chronicler) -> Self {
+        let team = chron.team(team_id, at_time)
             .await
             .expect("TODO: Handle failure to fetch team");
         let lineup = stream::iter(team.data.lineup)
-            .then(|player_id| Player::fetch(player_id, at_time))
+            .then(|player_id| Player::fetch(player_id, at_time, chron))
             .collect()
             .await;
 
@@ -25,7 +25,7 @@ impl GameTeam {
         //   started with, but I don't know why it's here
         let rotation_index = (team.data.rotation_slot + 1) as usize % team.data.rotation.len();
         let pitcher_uuid = team.data.rotation[rotation_index];
-        let pitcher = Player::fetch(pitcher_uuid, at_time).await;
+        let pitcher = Player::fetch(pitcher_uuid, at_time, chron).await;
 
         Self { lineup, pitcher }
     }
@@ -37,9 +37,9 @@ pub struct Game {
 }
 
 impl Game {
-    pub async fn from_first_game_update(first_update: &ChroniclerGameUpdate) -> Self {
-        let away_team = GameTeam::fetch(first_update.data.away_team, first_update.timestamp).await;
-        let home_team = GameTeam::fetch(first_update.data.home_team, first_update.timestamp).await;
+    pub async fn from_first_game_update(first_update: &ChroniclerGameUpdate, chron: &Chronicler) -> Self {
+        let away_team = GameTeam::fetch(first_update.data.away_team, first_update.timestamp, chron).await;
+        let home_team = GameTeam::fetch(first_update.data.home_team, first_update.timestamp, chron).await;
         Game {
             away_team,
             home_team,
@@ -211,8 +211,8 @@ pub struct Player {
 }
 
 impl Player {
-    pub async fn fetch(player_id: Uuid, at_time: DateTime<Utc>) -> Self {
-        let player = chronicler::player(player_id, at_time)
+    pub async fn fetch(player_id: Uuid, at_time: DateTime<Utc>, chron: &Chronicler) -> Self {
+        let player = chron.player(player_id, at_time)
             .await
             .expect("TODO: Handle failure to fetch player");
         assert_eq!(player_id, player.entity_id);
