@@ -161,6 +161,7 @@ async fn fragment(
         );
         if let Some(new_day) = engine.next_update(update, th).await? {
             days.push(new_day);
+            break; // TEMPORARY only render one day
         }
     }
 

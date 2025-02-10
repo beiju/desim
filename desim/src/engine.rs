@@ -69,10 +69,32 @@ pub enum EngineFatalError {
 }
 
 #[derive(Serialize)]
+struct FloatMismatchContext {
+    pub matching_digits: String,
+    pub mismatching_digits: String,
+}
+
+#[derive(Serialize)]
+enum OptionBoolMatchContext {
+    Matches,
+    MineMissingResimExists(bool),
+    MineExistsResimMissing(bool),
+    Mismatch { mine: bool, resim: bool },
+}
+
+#[derive(Serialize)]
+enum OptionFloatMatchContext {
+    Matches,
+    MineMissingResimExists(f64),
+    MineExistsResimMissing(f64),
+    Mismatch(FloatMismatchContext),
+}
+
+#[derive(Serialize)]
 struct ResimMatchContext {
-    rolls_match: bool,
-    passed_match: bool,
-    thresholds_match: bool,
+    rolls: Option<FloatMismatchContext>,
+    passed: OptionBoolMatchContext,
+    thresholds: OptionFloatMatchContext,
 }
 
 #[derive(Serialize)]
@@ -81,7 +103,7 @@ struct RollContext {
     description: String,
     rng_state: String,
     roll: f64,
-    resim_match: Option<ResimMatchContext>,
+    resim_mismatch: Option<ResimMatchContext>,
 }
 
 #[derive(Serialize)]
@@ -107,6 +129,77 @@ pub struct DayContext {
     ticks: Vec<TickContext>,
 }
 
+// Surprised this isn't built-in or available from a crate (as far as I can find)
+fn longest_common_char_prefix(a: &str, b: &str) -> usize {
+    let mut a_iter = a.chars();
+    let mut b_iter = b.chars();
+
+    let mut i = 0;
+    loop {
+        // If we've reached the end of either str, or if the characters don't
+        // match, we're done.
+        let Some(a_char) = a_iter.next() else {
+            return i;
+        };
+        let Some(b_char) = b_iter.next() else {
+            return i;
+        };
+        if a_char != b_char {
+            return i;
+        }
+        i += 1;
+    }
+}
+
+impl FloatMismatchContext {
+    pub fn from_values(my_val: f64, resim_val: f64) -> Option<Self> {
+        if my_val == resim_val {
+            return None;
+        }
+        let mut my_val_str = format!("{my_val}");
+        let resim_val_str = format!("{resim_val}");
+        let prefix_len = longest_common_char_prefix(&my_val_str, &resim_val_str);
+
+        // Build a string with the mismatched digits
+        let mismatching_digits = my_val_str[prefix_len..my_val_str.len()].to_string();
+
+        // Conveniently we already have a string with the prefix at the start,
+        // so just shorten it to fit. truncate mutates the original String
+        my_val_str.truncate(prefix_len);
+
+        Some(Self {
+            matching_digits: my_val_str,
+            mismatching_digits,
+        })
+    }
+}
+
+impl OptionBoolMatchContext {
+    pub fn from_values(my_val: Option<bool>, resim_val: Option<bool>) -> Self {
+        match (my_val, resim_val) {
+            (None, None) => Self::Matches,
+            (Some(val), None) => Self::MineExistsResimMissing(val),
+            (None, Some(val)) => Self::MineMissingResimExists(val),
+            (Some(mine), Some(resim)) if mine == resim => Self::Matches,
+            (Some(mine), Some(resim)) => Self::Mismatch { mine, resim },
+        }
+    }
+}
+
+impl OptionFloatMatchContext {
+    pub fn from_values(my_val: Option<f64>, resim_val: Option<f64>) -> Self {
+        match (my_val, resim_val) {
+            (None, None) => Self::Matches,
+            (Some(val), None) => Self::MineExistsResimMissing(val),
+            (None, Some(val)) => Self::MineMissingResimExists(val),
+            (Some(mine), Some(resim)) => match FloatMismatchContext::from_values(mine, resim) {
+                None => Self::Matches,
+                Some(mismatch) => Self::Mismatch(mismatch),
+            },
+        }
+    }
+}
+
 fn run_check(
     roll_value: f64,
     // TODO This should have some sort of trace so we know when the threshold
@@ -122,12 +215,12 @@ fn run_check(
     Some(ResimMatchContext {
         // One of the rare cases where == on a float is not just OK but actively
         // desired
-        rolls_match: check.roll == roll_value,
+        rolls: FloatMismatchContext::from_values(roll_value, check.roll),
         // check.passed and passed are both Options, but I think we want them to
         // be None together and Some together
-        passed_match: check.passed == passed,
+        passed: OptionBoolMatchContext::from_values(passed, check.passed),
         // Same for thresholds
-        thresholds_match: check.threshold == threshold,
+        thresholds: OptionFloatMatchContext::from_values(threshold, check.threshold),
     })
 }
 
@@ -199,7 +292,7 @@ fn run_roll(roll_spec: RollSpec, rng: &mut Rng, check_roll: Option<CheckRoll>) -
         description,
         rng_state: state_string,
         roll,
-        resim_match,
+        resim_mismatch: resim_match,
     }
 }
 
