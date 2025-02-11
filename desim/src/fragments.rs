@@ -1,8 +1,13 @@
+use crate::nom_helpers::{parse_terminated, parse_whole_number};
 use crate::rng::Rng;
+use crate::rolls::RollPurpose;
 use chrono::{DateTime, Utc};
 use flate2::bufread::GzDecoder;
 use itertools::Itertools;
-use serde::Deserialize;
+use nom::branch::alt;
+use nom::bytes::complete::tag;
+use nom::{Finish, Parser};
+use serde::{Deserialize, Deserializer};
 use std::collections::{HashMap, VecDeque};
 use std::io::{BufRead, BufReader, Read};
 use tar::Archive;
@@ -22,10 +27,81 @@ pub struct Fragment {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct CheckRoll {
-    pub label: String,
+    #[serde(rename = "label", deserialize_with = "deserialize_roll_purpose")]
+    pub purpose: RollPurpose,
     pub roll: f64,
     pub passed: Option<bool>,
     pub threshold: Option<f64>,
+}
+
+// I can't help myself
+type ParserError<'a> = nom::error::Error<&'a str>;
+type ParserResult<'a, Out> = nom::IResult<&'a str, Out, ParserError<'a>>;
+
+fn parse_to(label: &str) -> impl Fn(&str) -> ParserResult<&str> + use<'_> {
+    move |input| {
+        let (input, _) = tag(label).parse(input)?;
+        let (input, _) = tag(" (to ").parse(input)?;
+        parse_terminated(")").parse(input)
+    }
+}
+
+fn parse_steal(input: &str) -> ParserResult<i64> {
+    let (input, _) = tag("steal (").parse(input)?;
+    let (input, num) = parse_whole_number.parse(input)?;
+    let (input, _) = tag(")").parse(input)?;
+    Ok((input, num))
+}
+
+fn parse_advance(input: &str) -> ParserResult<(i64, bool)> {
+    let (input, _) = tag("adv (").parse(input)?;
+    let (input, num) = parse_whole_number.parse(input)?;
+    let (input, _) = tag(", ").parse(input)?;
+    let (input, b) = alt((tag("False").map(|_| false), tag("True").map(|_| true))).parse(input)?;
+    Ok((input, (num, b)))
+}
+
+fn parse_anything(input: &str) -> ParserResult<&str> {
+    Ok(("", input))
+}
+
+fn parse_roll_purpose(input: &str) -> ParserResult<RollPurpose> {
+    alt((
+        tag("party time").map(|_| RollPurpose::PartyTime),
+        tag("steal fielder").map(|_| RollPurpose::StealFielder),
+        tag("mild").map(|_| RollPurpose::MildPitch),
+        tag("strike").map(|_| RollPurpose::InStrikeZone),
+        tag("swing").map(|_| RollPurpose::Swing),
+        tag("contact").map(|_| RollPurpose::Contact),
+        tag("foul").map(|_| RollPurpose::FairOrFoul),
+        tag("fielder").map(|_| RollPurpose::Fielder),
+        parse_to("out").map(|name| RollPurpose::Out(name.to_string())),
+        tag("fly").map(|_| RollPurpose::Fly),
+        tag("home run").map(|_| RollPurpose::HomeRun),
+        parse_to("double").map(|name| RollPurpose::Double(name.to_string())),
+        parse_to("triple").map(|name| RollPurpose::Triple(name.to_string())),
+        parse_steal.map(|val| RollPurpose::Steal(val)),
+        parse_advance.map(|val| RollPurpose::Advance(val)),
+        tag("dp?").map(|_| RollPurpose::DoublePlayHappens),
+        tag("dp where").map(|_| RollPurpose::DoublePlayWhere),
+        tag("target team (not partying)").map(|_| RollPurpose::PartyTargetTeam),
+        parse_advance.map(|_| RollPurpose::PartyTargetTeam),
+        parse_anything.map(|v| RollPurpose::Unparsed(v.to_string())),
+    ))
+    .parse(input)
+}
+
+fn deserialize_roll_purpose<'de, D>(deserializer: D) -> Result<RollPurpose, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let s = String::deserialize(deserializer)?;
+
+    let (_, result) = parse_roll_purpose(&s)
+        .finish()
+        .map_err(serde::de::Error::custom)?;
+
+    Ok(result)
 }
 
 #[derive(Debug, Error)]

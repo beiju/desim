@@ -3,6 +3,7 @@ extern crate rocket;
 mod checker;
 mod engine;
 mod fragments;
+mod nom_helpers;
 mod rng;
 mod rolls;
 mod sim;

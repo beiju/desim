@@ -1,6 +1,6 @@
 use crate::fragments::{CheckRoll, RollStream};
 use crate::rng::Rng;
-use crate::rolls::{rolls_for_update, RollConstrains, RollSpec};
+use crate::rolls::{rolls_for_update, RollConstrains, RollPurpose, RollSpec};
 use crate::thresholds::Thresholds;
 use crate::{sim, update_parser, RollConstraintOutcome};
 use blaseball_api::{Chronicler, ChroniclerGameUpdate};
@@ -86,7 +86,7 @@ enum FloatMatchContext {
 enum OptionBoolMatchContext {
     Matches,
     MineMissingResimExists { resim: bool },
-    MineExistsResimMissing { mine: bool},
+    MineExistsResimMissing { mine: bool },
     Mismatch { mine: bool, resim: bool },
 }
 
@@ -94,14 +94,22 @@ enum OptionBoolMatchContext {
 #[serde(tag = "match")]
 enum OptionFloatMatchContext {
     Matches,
-    MineMissingResimExists { resim: f64},
-    MineExistsResimMissing { mine: f64},
+    MineMissingResimExists { resim: f64 },
+    MineExistsResimMissing { mine: f64 },
     Mismatch(FloatDigitsMismatchContext),
+}
+
+#[derive(Serialize)]
+#[serde(tag = "match")]
+enum RollPurposeMatchContext {
+    Matches,
+    Mismatch { mine: String, resim: String },
 }
 
 #[derive(Serialize)]
 struct ResimMatchContext {
     rolls: FloatMatchContext,
+    purpose: RollPurposeMatchContext,
     passed: OptionBoolMatchContext,
     threshold: OptionFloatMatchContext,
 }
@@ -171,9 +179,10 @@ impl FloatDigitsMismatchContext {
 
         // Build a string with the mismatched digits
         let mismatching_digits = resim_val_str[prefix_len..].to_string();
-        
+
         // Build a string with any extra digits
-        let extra_digits = my_val_str.get(resim_val_str.len()..)
+        let extra_digits = my_val_str
+            .get(resim_val_str.len()..)
             .unwrap_or("")
             .to_string();
 
@@ -193,7 +202,7 @@ impl FloatMatchContext {
     pub fn from_values(my_val: f64, resim_val: f64) -> Self {
         match FloatDigitsMismatchContext::from_values(my_val, resim_val) {
             None => Self::Matches,
-            Some(mismatch) => Self::Mismatch(mismatch)
+            Some(mismatch) => Self::Mismatch(mismatch),
         }
     }
 }
@@ -216,10 +225,24 @@ impl OptionFloatMatchContext {
             (None, None) => Self::Matches,
             (Some(mine), None) => Self::MineExistsResimMissing { mine },
             (None, Some(resim)) => Self::MineMissingResimExists { resim },
-            (Some(mine), Some(resim)) => match FloatDigitsMismatchContext::from_values(mine, resim) {
+            (Some(mine), Some(resim)) => match FloatDigitsMismatchContext::from_values(mine, resim)
+            {
                 None => Self::Matches,
                 Some(mismatch) => Self::Mismatch(mismatch),
             },
+        }
+    }
+}
+
+impl RollPurposeMatchContext {
+    pub fn from_values(mine: RollPurpose, resim: RollPurpose) -> Self {
+        if mine == resim {
+            Self::Matches
+        } else {
+            Self::Mismatch {
+                mine: format!("{mine:?}"),
+                resim: format!("{resim:?}"),
+            }
         }
     }
 }
@@ -230,6 +253,7 @@ fn run_check(
     //   was dependent on an earlier roll outcome
     threshold: Option<f64>,
     passed: Option<bool>,
+    purpose: RollPurpose,
     check: Option<CheckRoll>,
 ) -> Option<ResimMatchContext> {
     // I normally dislike ?-on-option because it hides bugs but I have to admit
@@ -238,6 +262,7 @@ fn run_check(
 
     Some(ResimMatchContext {
         rolls: FloatMatchContext::from_values(roll_value, check.roll),
+        purpose: RollPurposeMatchContext::from_values(purpose, check.purpose),
         passed: OptionBoolMatchContext::from_values(passed, check.passed),
         threshold: OptionFloatMatchContext::from_values(threshold, check.threshold),
     })
@@ -256,7 +281,7 @@ fn run_roll(roll_spec: RollSpec, rng: &mut Rng, check_roll: Option<CheckRoll>) -
             RollConstraintOutcome::TrivialSuccess,
             format!("{description}: Unconstrained ({roll})"),
             // Unconstrained by definition means we don't know whether it passed
-            run_check(roll, threshold, None, check_roll),
+            run_check(roll, threshold, None, roll_spec.purpose, check_roll),
         ),
         RollConstrains::BelowThreshold {
             threshold,
@@ -267,13 +292,25 @@ fn run_roll(roll_spec: RollSpec, rng: &mut Rng, check_roll: Option<CheckRoll>) -
                 (
                     RollConstraintOutcome::Success,
                     format!("{positive_description} ({roll} < {threshold})"),
-                    run_check(roll, Some(threshold), Some(true), check_roll),
+                    run_check(
+                        roll,
+                        Some(threshold),
+                        Some(true),
+                        roll_spec.purpose,
+                        check_roll,
+                    ),
                 )
             } else {
                 (
                     RollConstraintOutcome::Failure,
                     format!("{negative_description} ({roll} !< {threshold})"),
-                    run_check(roll, Some(threshold), Some(false), check_roll),
+                    run_check(
+                        roll,
+                        Some(threshold),
+                        Some(false),
+                        roll_spec.purpose,
+                        check_roll,
+                    ),
                 )
             }
         }
@@ -286,13 +323,25 @@ fn run_roll(roll_spec: RollSpec, rng: &mut Rng, check_roll: Option<CheckRoll>) -
                 (
                     RollConstraintOutcome::Success,
                     format!("{positive_description} ({roll} > {threshold})"),
-                    run_check(roll, Some(threshold), Some(false), check_roll),
+                    run_check(
+                        roll,
+                        Some(threshold),
+                        Some(false),
+                        roll_spec.purpose,
+                        check_roll,
+                    ),
                 )
             } else {
                 (
                     RollConstraintOutcome::Failure,
                     format!("{negative_description} ({roll} !> {threshold})"),
-                    run_check(roll, Some(threshold), Some(true), check_roll),
+                    run_check(
+                        roll,
+                        Some(threshold),
+                        Some(true),
+                        roll_spec.purpose,
+                        check_roll,
+                    ),
                 )
             }
         }
@@ -302,7 +351,7 @@ fn run_roll(roll_spec: RollSpec, rng: &mut Rng, check_roll: Option<CheckRoll>) -
         } => (
             RollConstraintOutcome::Unused,
             format!("{description} (Unused: {roll})"),
-            run_check(roll, threshold, None, check_roll),
+            run_check(roll, threshold, None, roll_spec.purpose, check_roll),
         ),
     };
 

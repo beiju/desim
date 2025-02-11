@@ -28,28 +28,56 @@ pub enum RollConstrains {
     },
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub enum RollPurpose {
+    PartyTime,
+    StealFielder,
+    MildPitch,
+    InStrikeZone,
+    Swing,
+    Contact,
+    FairOrFoul,
+    Fielder,
+    Out(String),
+    Fly,
+    HomeRun,
+    Double(String),
+    Triple(String),
+    Steal(i64),
+    Advance((i64, bool)),
+    DoublePlayHappens,
+    DoublePlayWhere,
+    PartyTargetTeam, // TODO is this right?
+    // This is our escape hatch. Anything we don't support ends up here. Don't
+    // ever use this value; instead, add a parser for the thing you're using
+    Unparsed(String),
+}
+
 pub struct RollSpec {
-    pub key: &'static str,
+    pub purpose: RollPurpose,
     pub constraints: RollConstrains,
 }
 
 impl RollSpec {
-    pub fn new(key: &'static str, constraints: RollConstrains) -> Self {
-        Self { key, constraints }
+    pub fn new(purpose: RollPurpose, constraints: RollConstrains) -> Self {
+        Self {
+            purpose,
+            constraints,
+        }
     }
 }
 
 fn standard_rolls() -> Vec<RollSpec> {
     let mut rolls = Vec::new();
     rolls.push(RollSpec::new(
-        "party_time",
+        RollPurpose::PartyTime,
         RollConstrains::Unused {
             threshold: None,
             description: "Party time".to_string(),
         },
     ));
     rolls.push(RollSpec::new(
-        "steal_fielder",
+        RollPurpose::StealFielder,
         RollConstrains::Unused {
             threshold: None,
             description: "Steal fielder".to_string(),
@@ -67,7 +95,7 @@ fn rolls_for_pitch(
 ) -> Vec<RollSpec> {
     let mut rolls = standard_rolls();
     rolls.push(RollSpec::new(
-        "mild_pitch",
+        RollPurpose::MildPitch,
         RollConstrains::AboveThreshold {
             threshold: th.mild_pitch(),
             positive_description: "No mild pitch".to_string(),
@@ -92,7 +120,10 @@ fn rolls_for_pitch(
                 .to_string(),
         },
     };
-    rolls.push(RollSpec::new("in_strike_zone", strike_zone_constraint));
+    rolls.push(RollSpec::new(
+        RollPurpose::InStrikeZone,
+        strike_zone_constraint,
+    ));
     let swing_constraint = match player_swung {
         None => RollConstrains::Unconstrained {
             threshold: None,
@@ -109,7 +140,7 @@ fn rolls_for_pitch(
             negative_description: "Expected player to not swing, but they did".to_string(),
         },
     };
-    rolls.push(RollSpec::new("swing", swing_constraint));
+    rolls.push(RollSpec::new(RollPurpose::Swing, swing_constraint));
 
     rolls
 }
@@ -137,7 +168,7 @@ fn rolls_for_contact(
             negative_description: "Expected swing to not make contact, but it did".to_string(),
         },
     };
-    rolls.push(RollSpec::new("contact", constrains));
+    rolls.push(RollSpec::new(RollPurpose::Contact, constrains));
 
     rolls
 }
@@ -149,7 +180,7 @@ fn rolls_for_foul(
 ) -> Vec<RollSpec> {
     let mut rolls = rolls_for_contact(th, game, in_strike_zone, Some(true));
     rolls.push(RollSpec::new(
-        "fair",
+        RollPurpose::FairOrFoul,
         RollConstrains::Unconstrained {
             threshold: None,
             description: "Fair or foul?".to_string(),
