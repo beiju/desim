@@ -261,7 +261,7 @@ body {
 
 .fragments li {
 	list-style: '>' outside;
-	padding: 1px 4px 3px;
+	padding: 4px;
 }
 
 .fragments a {
