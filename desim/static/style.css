@@ -261,11 +261,13 @@ body {
 
 .fragments li {
 	list-style: '>' outside;
-	padding: 3px 6px;
+	padding: 1px 4px 3px;
 }
 
 .fragments a {
 	color: #dddddd;
+	padding: 1px 4px 3px;
+	border-radius: 1px;
 }
 
 .fragments a:hover {
