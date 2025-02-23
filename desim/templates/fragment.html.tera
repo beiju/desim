@@ -14,7 +14,7 @@
             <table class="gameday-ticks">
             {% for tick in day.ticks %}
             <tbody class="gameday-tick">
-                {% set max_columns = 7 %}
+                {% set max_columns = 6 %}
                 <tr class="tick-label-row">
                     <td colspan="{{ max_columns }}" class="tick-label">Tick {{ tick.tick_number }}</td>
                 </tr>
@@ -80,7 +80,18 @@
 
                         {% if roll.usage.Threshold %}
                             {% set usage = roll.usage.Threshold %}
-                            <td>&lt;?</td>
+                            <td class="lt-sign-container">
+                                <span class="lt-sign">&lt;</span>
+                                <span class="above-lt-sign">
+                                    {% if usage.passed == true %}
+                                        ✅
+                                    {% elif usage.passed == false %}
+                                        ❌
+                                    {% else %}
+                                        ?
+                                    {% endif %}
+                                </span>
+                            </td>
                             <td class="float-format">
                                 {% if usage.threshold %}
                                 {{ usage.threshold }}
@@ -88,20 +99,11 @@
                                 Unknown {# TODO: Style this #}
                                 {% endif %}
                             </td>
-                            <td>
-                                {% if usage.passed == true %}
-                                Yes
-                                {% elif usage.passed == false %}
-                                No
-                                {% else %}
-                                ? {# TODO: Style this #}
-                                {% endif %}
-                            </td>
                         {% elif roll.usage.Choice %}
                             {% set usage = roll.usage.Choice %}
-                            <td colspan="3"></td>
+                            <td colspan="{{ max_columns - 4 }}"></td>
                         {% else %}
-                            <td colspan="3">ERROR: Unknown roll usage</td>
+                            <td colspan="{{ max_columns - 4 }}">ERROR: Unknown roll usage</td>
                         {% endif %}
 
                         {% if roll.resim_mismatch %}
