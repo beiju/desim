@@ -76,15 +76,12 @@
                         </td>
                         <td class="roll {{ roll.outcome }}">{{ roll.roll }}</td>
                         {% if roll.resim_mismatch %}
-                        <td class="resim-match {% if roll.resim_mismatch.rolls.match == "Matches" and roll.resim_mismatch.purpose.match == "Matches" and roll.resim_mismatch.threshold.match == "Matches" and roll.resim_mismatch.passed.match == "Matches" %}match{% else %}nomatch{% endif %}">
-                            {% if roll.resim_mismatch.rolls.match == "Matches" and roll.resim_mismatch.purpose.match == "Matches" and roll.resim_mismatch.threshold.match == "Matches" and roll.resim_mismatch.passed.match == "Matches" %}
-                          ✅
-                          {% else %}
-                          ❌
-                          {% endif %}
+                        {% set all_match = roll.resim_mismatch.rolls.match == "Matches" and roll.resim_mismatch.purpose.match == "Matches" and roll.resim_mismatch.threshold.match == "Matches" and roll.resim_mismatch.passed.match == "Matches" %}
+                        <td class="resim-match {% if all_match %}match{% else %}nomatch{% endif %}">
+                          {% if all_match %}✅{% else %}❌{% endif %}
                         <div class="resim-match-tooltip">
                             <h3 class="resim-match-header">
-                                {% if roll.resim_mismatch.rolls.match == "Matches" and roll.resim_mismatch.purpose.match == "Matches" and roll.resim_mismatch.threshold.match == "Matches" and roll.resim_mismatch.passed.match == "Matches" %}
+                                {% if all_match %}
                                     Matches resim result
                                 {% else %}
                                     Does not match resim result
@@ -95,7 +92,7 @@
                                     {% if roll.resim_mismatch.rolls.match == "Matches" %}
                                     Roll matches
                                     {% elif roll.resim_mismatch.rolls.match == "Mismatch" %}
-                                    Expected Roll: <span class="matching-digits">{{ roll.resim_mismatch.rolls.matching_digits }}</span><span class="mismatching-digits">{{ roll.resim_mismatch.rolls.mismatching_digits }}</span><span class="extra-digits">{{ roll.resim_mismatch.rolls.extra_digits }}</span>
+                                    Expected Roll: <span title="Desim value: {{ roll.resim_mismatch.rolls.mine }}, resim value: {{ roll.resim_mismatch.rolls.resim }}"><span class="matching-digits">{{ roll.resim_mismatch.rolls.matching_digits }}</span><span class="mismatching-digits">{{ roll.resim_mismatch.rolls.mismatching_digits }}</span><span class="extra-digits">{{ roll.resim_mismatch.rolls.extra_digits }}</span></span>
                                     {% else %}
                                     TEMPLATE ERROR: Roll enum not fully covered
                                     {% endif %}

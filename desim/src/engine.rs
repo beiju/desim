@@ -69,6 +69,8 @@ pub enum EngineFatalError {
 
 #[derive(Serialize)]
 struct FloatDigitsMismatchContext {
+    pub mine: f64,
+    pub resim: f64,
     pub matching_digits: String,
     pub mismatching_digits: String,
     pub extra_digits: String,
@@ -191,6 +193,8 @@ impl FloatDigitsMismatchContext {
         resim_val_str.truncate(prefix_len);
 
         Some(Self {
+            mine: my_val,
+            resim: resim_val,
             matching_digits: resim_val_str,
             mismatching_digits,
             extra_digits,

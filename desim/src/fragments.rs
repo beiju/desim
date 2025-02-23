@@ -158,7 +158,8 @@ pub fn load_fragments() -> Result<Fragments, LoadFragmentsError> {
         .map(|stream| (stream.file.clone(), stream.skip_lines.unwrap_or(0)))
         .collect::<HashMap<_, _>>();
 
-    println!("Want to load {} roll streams", streams_to_load.len());
+    assert_eq!(serde_json::from_str::<f64>("0.36886710997967875").unwrap(), 0.36886710997967875,
+               "serde_json did not accurately deserialize the test float. Ensure that the 'float_roundtrip' feature is enabled for the serde_json crate.");
 
     let mut roll_streams = load_roll_streams(streams_to_load)?;
     let fragments = fragments_specs
