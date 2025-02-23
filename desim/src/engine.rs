@@ -1,8 +1,8 @@
 use crate::fragments::{CheckRoll, RollStream};
 use crate::rng::Rng;
-use crate::rolls::{rolls_for_update, RollConstrains, RollPurpose, RollSpec};
+use crate::rolls::{rolls_for_update, RollData, RollPurpose, RollUsage};
 use crate::thresholds::Thresholds;
-use crate::{sim, update_parser, RollConstraintOutcome};
+use crate::{sim, update_parser};
 use blaseball_api::{Chronicler, ChroniclerGameUpdate};
 use chrono::{DateTime, Utc};
 use serde::Serialize;
@@ -69,6 +69,8 @@ pub enum EngineFatalError {
 
 #[derive(Serialize)]
 struct FloatDigitsMismatchContext {
+    pub mine: f64,
+    pub resim: f64,
     pub matching_digits: String,
     pub mismatching_digits: String,
     pub extra_digits: String,
@@ -107,19 +109,25 @@ enum RollPurposeMatchContext {
 }
 
 #[derive(Serialize)]
-struct ResimMatchContext {
-    rolls: FloatMatchContext,
-    purpose: RollPurposeMatchContext,
-    passed: OptionBoolMatchContext,
-    threshold: OptionFloatMatchContext,
+enum ResimMatchContext {
+    Threshold {
+        rolls: FloatMatchContext,
+        purpose: RollPurposeMatchContext,
+        passed: OptionBoolMatchContext,
+        threshold: OptionFloatMatchContext,
+    },
+    Choice {
+        rolls: FloatMatchContext,
+        purpose: RollPurposeMatchContext,
+    },
 }
 
 #[derive(Serialize)]
 struct RollContext {
-    outcome: RollConstraintOutcome,
-    description: String,
+    purpose: String,
     rng_state: String,
     roll: f64,
+    usage: RollUsage,
     resim_mismatch: Option<ResimMatchContext>,
 }
 
@@ -191,6 +199,8 @@ impl FloatDigitsMismatchContext {
         resim_val_str.truncate(prefix_len);
 
         Some(Self {
+            mine: my_val,
+            resim: resim_val,
             matching_digits: resim_val_str,
             mismatching_digits,
             extra_digits,
@@ -235,7 +245,7 @@ impl OptionFloatMatchContext {
 }
 
 impl RollPurposeMatchContext {
-    pub fn from_values(mine: RollPurpose, resim: RollPurpose) -> Self {
+    pub fn from_values(mine: &RollPurpose, resim: &RollPurpose) -> Self {
         if mine == resim {
             Self::Matches
         } else {
@@ -247,120 +257,42 @@ impl RollPurposeMatchContext {
     }
 }
 
-fn run_check(
-    roll_value: f64,
-    // TODO This should have some sort of trace so we know when the threshold
-    //   was dependent on an earlier roll outcome
-    threshold: Option<f64>,
-    passed: Option<bool>,
-    purpose: RollPurpose,
-    check: Option<CheckRoll>,
-) -> Option<ResimMatchContext> {
-    // I normally dislike ?-on-option because it hides bugs but I have to admit
-    // it's exactly what I need here
-    let check = check?;
-
-    Some(ResimMatchContext {
-        rolls: FloatMatchContext::from_values(roll_value, check.roll),
-        purpose: RollPurposeMatchContext::from_values(purpose, check.purpose),
-        passed: OptionBoolMatchContext::from_values(passed, check.passed),
-        threshold: OptionFloatMatchContext::from_values(threshold, check.threshold),
-    })
+impl ResimMatchContext {
+    pub fn for_roll(roll_data: &RollData, check: &CheckRoll) -> Self {
+        match roll_data.usage {
+            RollUsage::Threshold { threshold, passed } => {
+                ResimMatchContext::Threshold {
+                    rolls: FloatMatchContext::from_values(roll_data.roll, check.roll),
+                    purpose: RollPurposeMatchContext::from_values(
+                        &roll_data.purpose,
+                        &check.purpose,
+                    ),
+                    passed: OptionBoolMatchContext::from_values(passed, check.passed),
+                    // TODO This should have some sort of trace so we know when the threshold
+                    //   was dependent on an earlier roll outcome
+                    threshold: OptionFloatMatchContext::from_values(threshold, check.threshold),
+                }
+            }
+            RollUsage::Choice { .. } => ResimMatchContext::Choice {
+                rolls: FloatMatchContext::from_values(roll_data.roll, check.roll),
+                purpose: RollPurposeMatchContext::from_values(&roll_data.purpose, &check.purpose),
+            },
+        }
+    }
 }
 
-fn run_roll(roll_spec: RollSpec, rng: &mut Rng, check_roll: Option<CheckRoll>) -> RollContext {
-    // RNG step-before-value is the convention Resim set
-    rng.step(1);
-    let roll = rng.value();
-    let state_string = rng.state_string();
-    let (outcome, description, resim_mismatch) = match roll_spec.constraints {
-        RollConstrains::Unconstrained {
-            threshold,
-            description,
-        } => (
-            RollConstraintOutcome::TrivialSuccess,
-            format!("{description}: Unconstrained ({roll})"),
-            // Unconstrained by definition means we don't know whether it passed
-            run_check(roll, threshold, None, roll_spec.purpose, check_roll),
-        ),
-        RollConstrains::BelowThreshold {
-            threshold,
-            negative_description,
-            positive_description,
-        } => {
-            if roll < threshold {
-                (
-                    RollConstraintOutcome::Success,
-                    format!("{positive_description} ({roll} < {threshold})"),
-                    run_check(
-                        roll,
-                        Some(threshold),
-                        Some(true),
-                        roll_spec.purpose,
-                        check_roll,
-                    ),
-                )
-            } else {
-                (
-                    RollConstraintOutcome::Failure,
-                    format!("{negative_description} ({roll} !< {threshold})"),
-                    run_check(
-                        roll,
-                        Some(threshold),
-                        Some(false),
-                        roll_spec.purpose,
-                        check_roll,
-                    ),
-                )
-            }
+impl RollContext {
+    pub fn for_roll(roll_data: RollData, check_roll: Option<CheckRoll>) -> Self {
+        let resim_mismatch = check_roll
+            .as_ref()
+            .map(|cr| ResimMatchContext::for_roll(&roll_data, cr));
+        Self {
+            purpose: roll_data.purpose.to_string(),
+            rng_state: roll_data.state_string,
+            roll: roll_data.roll,
+            usage: roll_data.usage,
+            resim_mismatch,
         }
-        RollConstrains::AboveThreshold {
-            threshold,
-            negative_description,
-            positive_description,
-        } => {
-            if roll > threshold {
-                (
-                    RollConstraintOutcome::Success,
-                    format!("{positive_description} ({roll} > {threshold})"),
-                    run_check(
-                        roll,
-                        Some(threshold),
-                        Some(false),
-                        roll_spec.purpose,
-                        check_roll,
-                    ),
-                )
-            } else {
-                (
-                    RollConstraintOutcome::Failure,
-                    format!("{negative_description} ({roll} !> {threshold})"),
-                    run_check(
-                        roll,
-                        Some(threshold),
-                        Some(true),
-                        roll_spec.purpose,
-                        check_roll,
-                    ),
-                )
-            }
-        }
-        RollConstrains::Unused {
-            threshold,
-            description,
-        } => (
-            RollConstraintOutcome::Unused,
-            format!("{description} (Unused: {roll})"),
-            run_check(roll, threshold, None, roll_spec.purpose, check_roll),
-        ),
-    };
-
-    RollContext {
-        outcome,
-        description,
-        rng_state: state_string,
-        roll,
-        resim_mismatch,
     }
 }
 
@@ -544,18 +476,18 @@ fn run_game_tick(
     );
     match update_parser::parse_update(&update) {
         Ok(parsed_update) => {
-            let rolls = rolls_for_update(&parsed_update, th, &game_at_tick)
+            let rolls = rolls_for_update(rng, &parsed_update, th, &game_at_tick)
                 .into_iter()
-                .map(|roll_spec| {
+                .map(|roll_data| {
                     if let Some(check_rolls) = check_rolls {
                         // TODO This is the least efficient way to do it
                         if let Some(check_roll) = check_rolls.pop_front() {
-                            Ok(run_roll(roll_spec, rng, Some(check_roll)))
+                            Ok(RollContext::for_roll(roll_data, Some(check_roll)))
                         } else {
                             Err(EngineFatalError::RanOutOfCheckRolls)
                         }
                     } else {
-                        Ok(run_roll(roll_spec, rng, None))
+                        Ok(RollContext::for_roll(roll_data, None))
                     }
                 })
                 .collect::<Result<_, _>>()?;

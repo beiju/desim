@@ -1,0 +1,107 @@
+{% macro fragment_threshold_match(match) %}
+    {% set all_match = match.rolls.match == "Matches" and match.purpose.match == "Matches" and match.threshold.match == "Matches" and match.passed.match == "Matches" %}
+    <td class="resim-match {% if all_match %}match{% else %}nomatch{% endif %}">
+        {% if all_match %}✅{% else %}❌{% endif %}
+        <div class="resim-match-tooltip">
+            <h3 class="resim-match-header">
+                {% if all_match %}
+                    Matches resim result
+                {% else %}
+                    Does not match resim result
+                {% endif %}
+            </h3>
+            <ul class="resim-match-elements">
+                <li class="resim-match-element {% if match.rolls.match == "Matches" %}success{% else %}failure{% endif %}">
+                    {% if match.rolls.match == "Matches" %}
+                        Roll matches
+                        {% elif match.rolls.match == "Mismatch" %}
+                        Expected Roll: <span title="Desim value: {{ match.rolls.mine }}, resim value: {{ match.rolls.resim }}"><span class="matching-digits">{{ match.rolls.matching_digits }}</span><span class="mismatching-digits">{{ match.rolls.mismatching_digits }}</span><span class="extra-digits">{{ match.rolls.extra_digits }}</span></span>
+                    {% else %}
+                        TEMPLATE ERROR: Roll enum not fully covered
+                    {% endif %}
+                </li>
+                <li class="resim-match-element {% if match.purpose.match == "Matches" %}success{% else %}failure{% endif %}">
+                    {% if match.purpose.match == "Matches" %}
+                        Purpose matches
+                        {% elif match.purpose.match == "Mismatch" %}
+                        Expected purpose {{ match.purpose.resim }}
+                    {% else %}
+                        TEMPLATE ERROR: Purpose enum not fully covered
+                    {% endif %}
+                </li>
+                <li class="resim-match-element {% if match.threshold.match == "Matches" %}success{% else %}failure{% endif %}">
+                    {% if match.threshold.match == "Matches" %}
+                        Threshold matches
+                        {% elif match.threshold.match == "MineExistsResimMissing" %}
+                        Expected no threshold
+                        {% elif match.threshold.match == "MineMissingResimExists" %}
+                        Expected threshold {{ match.threshold.resim }}
+                        {% elif match.threshold.match == "Mismatch" %}
+                        Expected threshold: <span class="matching-digits">{{ match.threshold.matching_digits }}</span><span class="mismatching-digits">{{ match.threshold.mismatching_digits }}</span><span class="extra-digits">{{ match.threshold.extra_digits }}</span>
+                    {% else %}
+                        TEMPLATE ERROR: Threshold enum not fully covered
+                    {% endif %}
+                </li>
+                <li class="resim-match-element {% if match.passed.match == "Matches" %}success{% else %}failure{% endif %}">
+                    {% if match.passed.match == "Matches" %}
+                        Passed matches
+                        {% elif match.passed.match == "MineExistsResimMissing" %}
+                        Expected to not know whether the roll passed
+                        {% elif match.passed.match == "MineMissingResimExists" %}
+                        Expected to know that passed={{ match.passed.resim }}
+                        {% elif match.passed.match == "Mismatch" %}
+                        Expected passed={{ match.passed.resim }} but we predicted {{ match.passed.mine }}
+                    {% else %}
+                        TEMPLATE ERROR: Passed enum not fully covered
+                    {% endif %}
+                </li>
+            </ul>
+        </div>
+    </td>
+{% endmacro %}
+
+{% macro fragment_choice_match(match) %}
+    {% set all_match = match.rolls.match == "Matches" and match.purpose.match == "Matches" %}
+    <td class="resim-match {% if all_match %}match{% else %}nomatch{% endif %}">
+        {% if all_match %}✅{% else %}❌{% endif %}
+        <div class="resim-match-tooltip">
+            <h3 class="resim-match-header">
+                {% if all_match %}
+                    Matches resim result
+                {% else %}
+                    Does not match resim result
+                {% endif %}
+            </h3>
+            <ul class="resim-match-elements">
+                <li class="resim-match-element {% if match.rolls.match == "Matches" %}success{% else %}failure{% endif %}">
+                    {% if match.rolls.match == "Matches" %}
+                        Roll matches
+                        {% elif match.rolls.match == "Mismatch" %}
+                        Expected Roll: <span title="Desim value: {{ match.rolls.mine }}, resim value: {{ match.rolls.resim }}"><span class="matching-digits">{{ match.rolls.matching_digits }}</span><span class="mismatching-digits">{{ match.rolls.mismatching_digits }}</span><span class="extra-digits">{{ match.rolls.extra_digits }}</span></span>
+                    {% else %}
+                        TEMPLATE ERROR: Roll enum not fully covered
+                    {% endif %}
+                </li>
+                <li class="resim-match-element {% if match.purpose.match == "Matches" %}success{% else %}failure{% endif %}">
+                    {% if match.purpose.match == "Matches" %}
+                        Purpose matches
+                        {% elif match.purpose.match == "Mismatch" %}
+                        Expected purpose {{ match.purpose.resim }}
+                    {% else %}
+                        TEMPLATE ERROR: Purpose enum not fully covered
+                    {% endif %}
+                </li>
+            </ul>
+        </div>
+    </td>
+{% endmacro %}
+
+{% macro fragment_match(match) %}
+    {% if match.Threshold %}
+        {{ self::fragment_threshold_match(match=match.Threshold) }}
+    {% elif match.Choice %}
+        {{ self::fragment_choice_match(match=match.Choice) }}
+    {% else %}
+        ERROR: Unknown fragment match type
+    {% endif %}
+{% endmacro %}

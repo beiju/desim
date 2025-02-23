@@ -1,32 +1,9 @@
+use crate::rng::Rng;
 use crate::sim;
 use crate::thresholds::Thresholds;
 use crate::update_parser::{ParsedUpdate, ParsedUpdateData};
-
-// TODO Refactor this, it no longer does a good job of serving its purpose
-pub enum RollConstrains {
-    Unconstrained {
-        // We may know the threshold without knowing whether the roll should
-        // be above or below it
-        threshold: Option<f64>,
-        description: String,
-    },
-    BelowThreshold {
-        threshold: f64,
-        positive_description: String,
-        negative_description: String,
-    },
-    AboveThreshold {
-        threshold: f64,
-        positive_description: String,
-        negative_description: String,
-    },
-    Unused {
-        // We may know the threshold without knowing whether the roll should
-        // be above or below it
-        threshold: Option<f64>,
-        description: String,
-    },
-}
+use serde::Serialize;
+use std::fmt::{Display, Formatter};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum RollPurpose {
@@ -53,148 +30,220 @@ pub enum RollPurpose {
     Unparsed(String),
 }
 
-pub struct RollSpec {
-    pub purpose: RollPurpose,
-    pub constraints: RollConstrains,
-}
-
-impl RollSpec {
-    pub fn new(purpose: RollPurpose, constraints: RollConstrains) -> Self {
-        Self {
-            purpose,
-            constraints,
+impl Display for RollPurpose {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            RollPurpose::PartyTime => {
+                write!(f, "Was there a party?")
+            }
+            RollPurpose::StealFielder => {
+                write!(f, "Choose the steal fielder")
+            }
+            RollPurpose::MildPitch => {
+                write!(f, "Mild pitch?")
+            }
+            RollPurpose::InStrikeZone => {
+                write!(f, "Ball in strike zone?")
+            }
+            RollPurpose::Swing => {
+                write!(f, "Did batter swing?")
+            }
+            RollPurpose::Contact => {
+                write!(f, "Did batter make contact?")
+            }
+            RollPurpose::FairOrFoul => {
+                write!(f, "Was the ball fair?")
+            }
+            RollPurpose::Fielder => {
+                write!(f, "Choose the fielder")
+            }
+            RollPurpose::Out(name) => {
+                write!(f, "Did {name} catch the out?")
+            }
+            RollPurpose::Fly => {
+                write!(f, "TODO what is fly")
+            }
+            RollPurpose::HomeRun => {
+                write!(f, "Was it a home run?")
+            }
+            RollPurpose::Double(name) => {
+                write!(f, "Was it a double? (with fielder {name})")
+            }
+            RollPurpose::Triple(name) => {
+                write!(f, "Was it a triple? (with fielder {name})")
+            }
+            RollPurpose::Steal(base) => {
+                write!(f, "Did the runner steal base {base}?")
+            }
+            RollPurpose::Advance(_) => {
+                write!(f, "Did the runner advance?")
+            }
+            RollPurpose::DoublePlayHappens => {
+                write!(f, "Was there a double play?")
+            }
+            RollPurpose::DoublePlayWhere => {
+                write!(f, "Where was the double play?")
+            }
+            RollPurpose::PartyTargetTeam => {
+                write!(f, "Which team partied?")
+            }
+            RollPurpose::Unparsed(val) => {
+                write!(f, "Other: {val}")
+            }
         }
     }
 }
 
-fn standard_rolls() -> Vec<RollSpec> {
+#[derive(Serialize)]
+pub enum RollUsage {
+    Threshold {
+        threshold: Option<f64>,
+        passed: Option<bool>,
+    },
+    Choice {
+        num_options: usize,
+        selected_option: Option<usize>,
+    },
+}
+
+pub struct RollData {
+    pub state_string: String,
+    pub roll: f64,
+    pub purpose: RollPurpose,
+    pub usage: RollUsage,
+}
+
+impl RollData {
+    pub fn for_threshold(
+        rng: &mut Rng,
+        purpose: RollPurpose,
+        threshold: Option<f64>,
+        passed: Option<bool>,
+    ) -> Self {
+        rng.step(1);
+        Self {
+            state_string: rng.state_string(),
+            roll: rng.value(),
+            purpose,
+            usage: RollUsage::Threshold { threshold, passed },
+        }
+    }
+
+    pub fn for_choice(
+        rng: &mut Rng,
+        purpose: RollPurpose,
+        num_options: usize,
+        selected_option: Option<usize>,
+    ) -> Self {
+        rng.step(1);
+        Self {
+            state_string: rng.state_string(),
+            roll: rng.value(),
+            purpose,
+            usage: RollUsage::Choice {
+                num_options,
+                selected_option,
+            },
+        }
+    }
+}
+
+fn standard_rolls(rng: &mut Rng) -> Vec<RollData> {
     let mut rolls = Vec::new();
-    rolls.push(RollSpec::new(
+    rolls.push(RollData::for_threshold(
+        rng,
         RollPurpose::PartyTime,
-        RollConstrains::Unused {
-            threshold: None,
-            description: "Party time".to_string(),
-        },
+        None,
+        None,
     ));
-    rolls.push(RollSpec::new(
+    // TODO Supply roll fielder choice when known
+    rolls.push(RollData::for_choice(
+        rng,
         RollPurpose::StealFielder,
-        RollConstrains::Unused {
-            threshold: None,
-            description: "Steal fielder".to_string(),
-        },
+        0,
+        None,
     ));
 
     rolls
 }
 
 fn rolls_for_pitch(
+    rng: &mut Rng,
     th: &Thresholds,
     game: &sim::GameAtTick,
     in_strike_zone: Option<bool>,
     player_swung: Option<bool>,
-) -> Vec<RollSpec> {
-    let mut rolls = standard_rolls();
-    rolls.push(RollSpec::new(
+) -> Vec<RollData> {
+    let mut rolls = standard_rolls(rng);
+
+    rolls.push(RollData::for_threshold(
+        rng,
         RollPurpose::MildPitch,
-        RollConstrains::AboveThreshold {
-            threshold: th.mild_pitch(),
-            positive_description: "No mild pitch".to_string(),
-            negative_description: "Expected no mild pitch".to_string(),
-        },
+        None,
+        None,
     ));
 
-    let strike_zone_constraint = match in_strike_zone {
-        None => RollConstrains::Unconstrained {
-            threshold: None,
-            description: "In strike zone?".to_string(),
-        },
-        Some(true) => RollConstrains::BelowThreshold {
-            threshold: th.in_strike_zone(),
-            positive_description: "Pitch in strike zone".to_string(),
-            negative_description: "Expected pitch in strike zone, but it was outside".to_string(),
-        },
-        Some(false) => RollConstrains::AboveThreshold {
-            threshold: th.in_strike_zone(),
-            positive_description: "Pitch outside strike zone".to_string(),
-            negative_description: "Expected pitch outside strike zone, but it was inside"
-                .to_string(),
-        },
-    };
-    rolls.push(RollSpec::new(
+    rolls.push(RollData::for_threshold(
+        rng,
         RollPurpose::InStrikeZone,
-        strike_zone_constraint,
+        Some(th.in_strike_zone()),
+        in_strike_zone,
     ));
-    let swing_constraint = match player_swung {
-        None => RollConstrains::Unconstrained {
-            threshold: None,
-            description: "Did player swing?".to_string(),
-        },
-        Some(true) => RollConstrains::BelowThreshold {
-            threshold: th.swing(true /* TODO this value comes from rng */, game),
-            positive_description: "Player swung".to_string(),
-            negative_description: "Expected player to swing, but they didn't".to_string(),
-        },
-        Some(false) => RollConstrains::AboveThreshold {
-            threshold: th.swing(true /* TODO this value comes from rng */, game),
-            positive_description: "Player did not swing".to_string(),
-            negative_description: "Expected player to not swing, but they did".to_string(),
-        },
-    };
-    rolls.push(RollSpec::new(RollPurpose::Swing, swing_constraint));
+
+    let in_strike_zone = rolls.last().unwrap().roll < th.in_strike_zone();
+    rolls.push(RollData::for_threshold(
+        rng,
+        RollPurpose::Swing,
+        Some(th.swing(in_strike_zone, game)),
+        player_swung,
+    ));
 
     rolls
 }
 
 fn rolls_for_contact(
+    rng: &mut Rng,
     th: &Thresholds,
     game: &sim::GameAtTick,
     in_strike_zone: Option<bool>,
     made_contact: Option<bool>,
-) -> Vec<RollSpec> {
-    let mut rolls = rolls_for_pitch(th, game, in_strike_zone, Some(true));
-    let constrains = match made_contact {
-        None => RollConstrains::Unconstrained {
-            threshold: None,
-            description: "Contact?".to_string(),
-        },
-        Some(true) => RollConstrains::BelowThreshold {
-            threshold: th.made_contact(),
-            positive_description: "Swing made contact".to_string(),
-            negative_description: "Expected swing to make contact, but it didn't".to_string(),
-        },
-        Some(false) => RollConstrains::AboveThreshold {
-            threshold: th.made_contact(),
-            positive_description: "Swing did not make contact".to_string(),
-            negative_description: "Expected swing to not make contact, but it did".to_string(),
-        },
-    };
-    rolls.push(RollSpec::new(RollPurpose::Contact, constrains));
+) -> Vec<RollData> {
+    let mut rolls = rolls_for_pitch(rng, th, game, in_strike_zone, Some(true));
+
+    rolls.push(RollData::for_threshold(
+        rng,
+        RollPurpose::Contact,
+        Some(th.made_contact()),
+        made_contact,
+    ));
 
     rolls
 }
 
 fn rolls_for_foul(
+    rng: &mut Rng,
     th: &Thresholds,
     game: &sim::GameAtTick,
     in_strike_zone: Option<bool>,
-) -> Vec<RollSpec> {
-    let mut rolls = rolls_for_contact(th, game, in_strike_zone, Some(true));
-    rolls.push(RollSpec::new(
+) -> Vec<RollData> {
+    let mut rolls = rolls_for_contact(rng, th, game, in_strike_zone, Some(true));
+
+    rolls.push(RollData::for_threshold(
+        rng,
         RollPurpose::FairOrFoul,
-        RollConstrains::Unconstrained {
-            threshold: None,
-            description: "Fair or foul?".to_string(),
-        },
+        None,
+        None,
     ));
 
     rolls
 }
 
 pub fn rolls_for_update(
+    rng: &mut Rng,
     update: &ParsedUpdate,
     th: &Thresholds,
     game: &sim::GameAtTick,
-) -> Vec<RollSpec> {
+) -> Vec<RollData> {
     match update.data {
         // No rolls for these updates
         ParsedUpdateData::Empty => vec![],
@@ -202,13 +251,15 @@ pub fn rolls_for_update(
         ParsedUpdateData::InningTurnover => vec![],
         ParsedUpdateData::BatterUp => vec![],
         // Balls are known to not be in the strike zone and the player didn't swing
-        ParsedUpdateData::Ball => rolls_for_pitch(th, game, Some(false), Some(false)),
+        ParsedUpdateData::Ball => rolls_for_pitch(rng, th, game, Some(false), Some(false)),
         // Fouls may be in or out of the strike zone
-        ParsedUpdateData::FoulBall => rolls_for_foul(th, game, None),
+        ParsedUpdateData::FoulBall => rolls_for_foul(rng, th, game, None),
         // Strikeouts looking are known to be in the strike zone and the player didn't swing
-        ParsedUpdateData::StrikeLooking => rolls_for_pitch(th, game, Some(true), Some(true)),
-        ParsedUpdateData::StrikeoutLooking => rolls_for_pitch(th, game, Some(true), Some(true)),
-        ParsedUpdateData::StrikeSwinging => rolls_for_contact(th, game, None, Some(true)),
-        ParsedUpdateData::StrikeoutSwinging => rolls_for_contact(th, game, None, Some(true)),
+        ParsedUpdateData::StrikeLooking => rolls_for_pitch(rng, th, game, Some(true), Some(true)),
+        ParsedUpdateData::StrikeoutLooking => {
+            rolls_for_pitch(rng, th, game, Some(true), Some(true))
+        }
+        ParsedUpdateData::StrikeSwinging => rolls_for_contact(rng, th, game, None, Some(true)),
+        ParsedUpdateData::StrikeoutSwinging => rolls_for_contact(rng, th, game, None, Some(true)),
     }
 }

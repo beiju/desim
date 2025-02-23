@@ -37,6 +37,7 @@ body {
     border: 1px solid rgba(255, 255, 255, 0.4);
     border-top: none;
     border-spacing: 0;
+    table-layout: fixed;
 
     --tick-label-color: #950000;
 }
@@ -174,6 +175,10 @@ body {
     border-bottom: 1px solid rgba(0, 0, 0, 0.5);
 }
 
+.gameday-ticks .purpose {
+    width: 100%;
+}
+
 .rng-sibr-dev-link a {
     text-decoration: none;
 }
@@ -258,7 +263,6 @@ body {
     color: #f45757;
     text-decoration: line-through;
 }
-
 .fragments li {
 	list-style: '>' outside;
 	padding: 4px;
@@ -273,4 +277,17 @@ body {
 .fragments a:hover {
 	color: #aa77ff;
 	background-color: rgba(255, 255, 255, 0.2)
+}
+
+.float-format {
+    font-family: monospace;
+    /* https://stackoverflow.com/a/1701085 */
+    width: 24ch;
+}
+
+.lt-sign-container {
+    font-size: 0.7em;
+    display: flex;
+    flex-direction: column-reverse;
+    align-items: center;
 }

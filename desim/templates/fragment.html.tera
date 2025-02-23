@@ -1,3 +1,4 @@
+{% import "fragment_match_macro" as fragment_match_macro %}
 <!doctype html>
 <html>
     <head>
@@ -13,14 +14,15 @@
             <table class="gameday-ticks">
             {% for tick in day.ticks %}
             <tbody class="gameday-tick">
+                {% set max_columns = 6 %}
                 <tr class="tick-label-row">
-                    <td colspan="5" class="tick-label">Tick {{ tick.tick_number }}</td>
+                    <td colspan="{{ max_columns }}" class="tick-label">Tick {{ tick.tick_number }}</td>
                 </tr>
 
                 {% if tick.errors %}
                 {% for error in tick.errors %}
                 <tr>
-                    <td colspan="5" class="tick-error">{{ error }}</td>
+                    <td colspan="{{ max_columns }}" class="tick-error">{{ error }}</td>
                 </tr>
                 {% endfor %}
                 {% endif %}
@@ -28,7 +30,7 @@
                 {% if tick.warnings %}
                 {% for warning in tick.warnings %}
                 <tr>
-                    <td colspan="5" class="tick-warning">{{ warning }}</td>
+                    <td colspan="{{ max_columns }}" class="tick-warning">{{ warning }}</td>
                 </tr>
                 {% endfor %}
                 {% endif %}
@@ -36,12 +38,12 @@
                 {% if tick.games %}
                 {% for game_tick in tick.games %}
                     <tr>
-                        <td colspan="5" class="game-tick-label">{{ game_tick.game_label }}</td>
+                        <td colspan="{{ max_columns }}" class="game-tick-label">{{ game_tick.game_label }}</td>
                     </tr>
                     {% if game_tick.errors %}
                     {% for error in game_tick.errors %}
                         <tr>
-                            <td colspan="5" class="game-tick-error">{{ error }}</td>
+                            <td colspan="{{ max_columns }}" class="game-tick-error">{{ error }}</td>
                         </tr>
                     {% endfor %}
                     {%  endif %}
@@ -49,7 +51,7 @@
                     {% if game_tick.warnings %}
                     {% for warning in game_tick.warnings %}
                         <tr>
-                            <td colspan="5" class="game-tick-warning">{{ warning }}</td>
+                            <td colspan="{{ max_columns }}" class="game-tick-warning">{{ warning }}</td>
                         </tr>
                     {% endfor %}
                     {%  endif %}
@@ -57,11 +59,11 @@
                     {# Event description can be the empty string and it looks weird without special handling #}
                     {% if game_tick.description %}
                         <tr>
-                            <td colspan="5" class="game-tick-event">{{ game_tick.description }}</td>
+                            <td colspan="{{ max_columns }}" class="game-tick-event">{{ game_tick.description }}</td>
                         </tr>
                     {% else %}
                         <tr>
-                            <td colspan="5" class="game-tick-event description-empty">(empty)</td>
+                            <td colspan="{{ max_columns }}" class="game-tick-event description-empty">(empty)</td>
                         </tr>
                     {% endif %}
 
@@ -71,80 +73,48 @@
                         <td class="rng-sibr-dev-link">
                             <a href="https://rng.sibr.dev/?state={{ roll.rng_state }}">🎲</a>
                         </td>
-                        <td colspan="2" class="roll {{ roll.outcome }}">
-                            {{ roll.description }}
+                        <td class="purpose">
+                            {{ roll.purpose }}
                         </td>
-                        <td class="roll {{ roll.outcome }}">{{ roll.roll }}</td>
-                        {% if roll.resim_mismatch %}
-                        <td class="resim-match {% if roll.resim_mismatch.rolls.match == "Matches" and roll.resim_mismatch.purpose.match == "Matches" and roll.resim_mismatch.threshold.match == "Matches" and roll.resim_mismatch.passed.match == "Matches" %}match{% else %}nomatch{% endif %}">
-                            {% if roll.resim_mismatch.rolls.match == "Matches" and roll.resim_mismatch.purpose.match == "Matches" and roll.resim_mismatch.threshold.match == "Matches" and roll.resim_mismatch.passed.match == "Matches" %}
-                          ✅
-                          {% else %}
-                          ❌
-                          {% endif %}
-                        <div class="resim-match-tooltip">
-                            <h3 class="resim-match-header">
-                                {% if roll.resim_mismatch.rolls.match == "Matches" and roll.resim_mismatch.purpose.match == "Matches" and roll.resim_mismatch.threshold.match == "Matches" and roll.resim_mismatch.passed.match == "Matches" %}
-                                    Matches resim result
+                        <td class="roll float-format">{{ roll.roll }}</td>
+
+                        {% if roll.usage.Threshold %}
+                            {% set usage = roll.usage.Threshold %}
+                            <td class="lt-sign-container">
+                                <span class="lt-sign">&lt;</span>
+                                <span class="above-lt-sign">
+                                    {% if usage.passed == true %}
+                                        ✅
+                                    {% elif usage.passed == false %}
+                                        ❌
+                                    {% else %}
+                                        ?
+                                    {% endif %}
+                                </span>
+                            </td>
+                            <td class="float-format">
+                                {% if usage.threshold %}
+                                {{ usage.threshold }}
                                 {% else %}
-                                    Does not match resim result
+                                Unknown {# TODO: Style this #}
                                 {% endif %}
-                            </h3>
-                            <ul class="resim-match-elements">
-                                <li class="resim-match-element {% if roll.resim_mismatch.rolls.match == "Matches" %}success{% else %}failure{% endif %}">
-                                    {% if roll.resim_mismatch.rolls.match == "Matches" %}
-                                    Roll matches
-                                    {% elif roll.resim_mismatch.rolls.match == "Mismatch" %}
-                                    Expected Roll: <span class="matching-digits">{{ roll.resim_mismatch.rolls.matching_digits }}</span><span class="mismatching-digits">{{ roll.resim_mismatch.rolls.mismatching_digits }}</span><span class="extra-digits">{{ roll.resim_mismatch.rolls.extra_digits }}</span>
-                                    {% else %}
-                                    TEMPLATE ERROR: Roll enum not fully covered
-                                    {% endif %}
-                                </li>
-                                <li class="resim-match-element {% if roll.resim_mismatch.purpose.match == "Matches" %}success{% else %}failure{% endif %}">
-                                    {% if roll.resim_mismatch.purpose.match == "Matches" %}
-                                    Purpose matches
-                                    {% elif roll.resim_mismatch.purpose.match == "Mismatch" %}
-                                    Expected purpose {{ roll.resim_mismatch.purpose.resim }}
-                                    {% else %}
-                                    TEMPLATE ERROR: Purpose enum not fully covered
-                                    {% endif %}
-                                </li>
-                                <li class="resim-match-element {% if roll.resim_mismatch.threshold.match == "Matches" %}success{% else %}failure{% endif %}">
-                                    {% if roll.resim_mismatch.threshold.match == "Matches" %}
-                                    Threshold matches
-                                    {% elif roll.resim_mismatch.threshold.match == "MineExistsResimMissing" %}
-                                    Expected no threshold
-                                    {% elif roll.resim_mismatch.threshold.match == "MineMissingResimExists" %}
-                                    Expected threshold {{ roll.resim_mismatch.threshold.resim }}
-                                    {% elif roll.resim_mismatch.threshold.match == "Mismatch" %}
-                                    Expected threshold: <span class="matching-digits">{{ roll.resim_mismatch.threshold.matching_digits }}</span><span class="mismatching-digits">{{ roll.resim_mismatch.threshold.mismatching_digits }}</span><span class="extra-digits">{{ roll.resim_mismatch.threshold.extra_digits }}</span>
-                                    {% else %}
-                                    TEMPLATE ERROR: Threshold enum not fully covered
-                                    {% endif %}
-                                </li>
-                                <li class="resim-match-element {% if roll.resim_mismatch.passed.match == "Matches" %}success{% else %}failure{% endif %}">
-                                    {% if roll.resim_mismatch.passed.match == "Matches" %}
-                                    Passed matches
-                                    {% elif roll.resim_mismatch.passed.match == "MineExistsResimMissing" %}
-                                    Expected to not know whether the roll passed
-                                    {% elif roll.resim_mismatch.passed.match == "MineMissingResimExists" %}
-                                    Expected to know that passed={{ roll.resim_mismatch.passed.resim }}
-                                    {% elif roll.resim_mismatch.passed.match == "Mismatch" %}
-                                    Expected passed={{ roll.resim_mismatch.passed.resim }} but we predicted {{ roll.resim_mismatch.passed.mine }}
-                                    {% else %}
-                                    TEMPLATE ERROR: Passed enum not fully covered
-                                    {% endif %}
-                                </li>
-                            </ul>
-                        </div>
-                        </td>
+                            </td>
+                        {% elif roll.usage.Choice %}
+                            {% set usage = roll.usage.Choice %}
+                            <td colspan="{{ max_columns - 4 }}"></td>
+                        {% else %}
+                            <td colspan="{{ max_columns - 4 }}">ERROR: Unknown roll usage</td>
+                        {% endif %}
+
+                        {% if roll.resim_mismatch %}
+                        {{ fragment_match_macro::fragment_match(match=roll.resim_mismatch) }}
                         {% endif %}
                     </tr>
                     {% endfor %}
                     {% else %}
                         <tr>
                             <td class="tick-indent"></td>
-                            <td colspan="4" class=" roll no-rolls">No rolls</td>
+                            <td colspan="{{ max_columns - 1 }}" class=" roll no-rolls">No rolls</td>
                         </tr>
                     {% endif %}
                 {% endfor %}
