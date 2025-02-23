@@ -192,6 +192,11 @@ impl Rng {
         }
     }
 
+    pub fn next(&mut self) -> f64 {
+        self.step(1);
+        self.value()
+    }
+
     pub fn state_string(&self) -> String {
         format!("({},{})+{}", self.state.0, self.state.1, self.offset)
     }

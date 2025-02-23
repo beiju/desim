@@ -26,19 +26,6 @@ use std::future;
 use std::pin::pin;
 use thiserror::Error;
 
-#[derive(Serialize)]
-#[serde(rename_all = "kebab-case")]
-enum RollConstraintOutcome {
-    /// Succeeded because we don't know enough to confirm that it failed
-    TrivialSuccess,
-    /// We're confident that this roll obeyed the threshold
-    Success,
-    /// We're confident that this roll violated the threshold
-    Failure,
-    /// We're confident that the sim doesn't use the outcome of this roll
-    Unused,
-}
-
 #[derive(Error, Debug)]
 pub enum DesimError {
     #[error(

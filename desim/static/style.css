@@ -258,3 +258,9 @@ body {
     color: #f45757;
     text-decoration: line-through;
 }
+
+.float-format {
+    font-family: monospace;
+    /* https://stackoverflow.com/a/1701085 */
+    width: 24ch;
+}
