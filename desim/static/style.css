@@ -263,6 +263,21 @@ body {
     color: #f45757;
     text-decoration: line-through;
 }
+.fragments li {
+	list-style: '>' outside;
+	padding: 4px;
+}
+
+.fragments a {
+	color: #dddddd;
+	padding: 1px 4px 3px;
+	border-radius: 1px;
+}
+
+.fragments a:hover {
+	color: #aa77ff;
+	background-color: rgba(255, 255, 255, 0.2)
+}
 
 .float-format {
     font-family: monospace;
