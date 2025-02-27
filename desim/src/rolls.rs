@@ -186,11 +186,11 @@ fn rolls_for_pitch(
     rolls.push(RollData::for_threshold(
         rng,
         RollPurpose::InStrikeZone,
-        Some(th.in_strike_zone()),
+        Some(th.in_strike_zone(game)),
         in_strike_zone,
     ));
 
-    let in_strike_zone = rolls.last().unwrap().roll < th.in_strike_zone();
+    let in_strike_zone = rolls.last().unwrap().roll < th.in_strike_zone(game);
     rolls.push(RollData::for_threshold(
         rng,
         RollPurpose::Swing,

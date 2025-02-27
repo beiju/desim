@@ -17,8 +17,24 @@ impl Thresholds {
         json5::from_str(THRESHOLDS_JSON)
     }
 
-    pub fn in_strike_zone(&self) -> f64 {
-        0.2 // TODO
+    pub fn in_strike_zone(&self, game: &sim::GameAtTick) -> f64 {
+        let pitcher_vibes = game.pitcher().vibes;
+
+        let ruthlessness = game
+            .pitcher()
+            .attribute(Attribute::Ruthlessness)
+            .multiplied();
+
+        let musclitude = game
+            .batter()
+            .attribute(Attribute::Musclitude)
+            .multiplied();
+        
+        let forwardness = 0.5; // Stadium attributes default to 0.5 when there is no stadium
+        
+        let threshold = 0.2 + 0.35 * (ruthlessness * (1.0 + 0.2 * pitcher_vibes)) + 0.2 * forwardness + 0.1 * musclitude;
+        
+        threshold.min(0.9)
     }
 
     pub fn swing(&self, in_zone: bool, game: &sim::GameAtTick) -> f64 {
