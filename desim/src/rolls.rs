@@ -190,12 +190,11 @@ fn rolls_for_pitch(
         in_strike_zone,
     ));
 
-    let in_strike_zone = rolls.last().unwrap().roll < th.in_strike_zone(game);
     rolls.push(RollData::for_threshold(
         rng,
         RollPurpose::Swing,
-        Some(th.swing(in_strike_zone, game)),
-        player_swung,
+        None, // TODO
+        None, // TODO
     ));
 
     rolls
@@ -213,8 +212,8 @@ fn rolls_for_contact(
     rolls.push(RollData::for_threshold(
         rng,
         RollPurpose::Contact,
-        Some(th.made_contact()),
-        made_contact,
+        None, // TODO
+        None, // TODO
     ));
 
     rolls
