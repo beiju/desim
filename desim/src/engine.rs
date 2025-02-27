@@ -267,7 +267,7 @@ impl ResimMatchContext {
                         &roll_data.purpose,
                         &check.purpose,
                     ),
-                    passed: OptionBoolMatchContext::from_values(passed, check.passed),
+                    passed: OptionBoolMatchContext::from_values(passed, check.passed()),
                     // TODO This should have some sort of trace so we know when the threshold
                     //   was dependent on an earlier roll outcome
                     threshold: OptionFloatMatchContext::from_values(threshold, check.threshold),

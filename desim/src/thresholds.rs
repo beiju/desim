@@ -12,6 +12,16 @@ pub struct Thresholds {
     pub(crate) weather: f64,
 }
 
+trait Vibable {
+    fn vibed(self: &Self, vibes: f64) -> f64;
+}
+
+impl Vibable for f64 {
+    fn vibed(self: &Self, vibes: f64) -> f64 {
+        self * (1.0 + 0.2 * vibes)
+    }
+}
+
 impl Thresholds {
     pub fn load() -> Result<Self, json5::Error> {
         json5::from_str(THRESHOLDS_JSON)
@@ -29,11 +39,11 @@ impl Thresholds {
             .batter()
             .attribute(Attribute::Musclitude)
             .multiplied();
-        
+
         let forwardness = 0.5; // Stadium attributes default to 0.5 when there is no stadium
-        
+
         let threshold = 0.2 + 0.35 * (ruthlessness * (1.0 + 0.2 * pitcher_vibes)) + 0.2 * forwardness + 0.1 * musclitude;
-        
+
         threshold.min(0.9)
     }
 
@@ -85,6 +95,34 @@ impl Thresholds {
 
         let combined = (12. * ruthlessness - 5. * moxie + 5. * patheticism + 4. * viscosity) / 20.;
         combined.powf(1.5).min(0.95).max(0.1)
+    }
+
+    pub fn fair_ball(&self, game: &sim::GameAtTick) -> f64 {
+        let batter_vibes = game.batter().vibes;
+        let forwardness = 0.5;
+        let obtuseness = 0.5;
+
+        let musclitude = game
+            .batter()
+            .attribute(Attribute::Musclitude)
+            .multiplied()
+            .vibed(batter_vibes);
+
+        let thwackability = game
+            .batter()
+            .attribute(Attribute::Thwackability)
+            .multiplied()
+            .vibed(batter_vibes);
+
+        let divinity = game
+            .batter()
+            .attribute(Attribute::Divinity)
+            .multiplied()
+            .vibed(batter_vibes);
+
+        let batter_sum = (musclitude + thwackability + divinity) / 3.0;
+
+        0.25 + 0.1 * forwardness - 0.1 * obtuseness + 0.1 * batter_sum
     }
 
     pub fn made_contact(&self) -> f64 {

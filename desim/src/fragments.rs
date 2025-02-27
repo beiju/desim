@@ -30,8 +30,23 @@ pub struct CheckRoll {
     #[serde(rename = "label", deserialize_with = "deserialize_roll_purpose")]
     pub purpose: RollPurpose,
     pub roll: f64,
-    pub passed: Option<bool>,
+    // This is not public because for some `RollPurpose`s, my definition of 
+    // "passed" is different from resim's. Use the `.passed()` function instead.
+    passed: Option<bool>,
     pub threshold: Option<f64>,
+}
+
+impl CheckRoll {
+    pub fn passed(&self) -> Option<bool> {
+        // My definition of "passed" is whether the value was below the 
+        // threshold. Resim's definition of "passed" is more colloquial. For
+        // fouls, these definitions are opposite, so we reverse the value.
+        if self.purpose == RollPurpose::FairOrFoul {
+            self.passed.map(|x| !x)
+        } else {
+            self.passed
+        }
+    }
 }
 
 // I can't help myself
@@ -217,7 +232,7 @@ fn load_roll_stream(entry: impl Read, skip_lines: usize) -> Result<RollStream, L
             let line = line.map_err(|e| LoadFragmentsError::CorruptedRollStreamsArchive(e))?;
 
             serde_json::from_str(&line)
-                .map_err(|e| LoadFragmentsError::CorruptedRollStreamsArchive(e.into()))
+                .map_err(|e| LoadFragmentsError::InvalidJsonInRollStreamsArchive(e.into()))
         })
         .collect()
 }

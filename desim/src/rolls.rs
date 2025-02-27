@@ -231,8 +231,8 @@ fn rolls_for_foul_or_fair(
     rolls.push(RollData::for_threshold(
         rng,
         RollPurpose::FairOrFoul,
-        None,
-        None,
+        Some(th.fair_ball(game)),
+        Some(fair),
     ));
 
     rolls
