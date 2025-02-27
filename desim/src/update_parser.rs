@@ -7,11 +7,11 @@ use nom::combinator::eof;
 use nom::Parser;
 use thiserror::Error;
 
-pub struct ParsedUpdate {
-    pub data: ParsedUpdateData,
+pub struct ParsedUpdate<'s> {
+    pub data: ParsedUpdateData<'s>,
 }
 
-pub enum ParsedUpdateData {
+pub enum ParsedUpdateData<'s> {
     Empty,
     PlayBall,
     InningTurnover,
@@ -22,6 +22,10 @@ pub enum ParsedUpdateData {
     StrikeoutLooking,
     StrikeSwinging,
     StrikeoutSwinging,
+    GroundOut {
+        batter_name: &'s str,
+        fielder_name: &'s str,
+    }
 }
 
 #[derive(Error, Debug)]
@@ -48,6 +52,7 @@ fn parse_description(input: &str) -> ParserResult<ParsedUpdateData> {
         parse_foul_ball,
         parse_strikeout,
         parse_strike,
+        parse_ground_out,
     ))
     .parse(input)
 }
@@ -119,4 +124,14 @@ fn parse_strike(input: &str) -> ParserResult<ParsedUpdateData> {
     let (input, _balls) = digit1.parse(input)?;
 
     Ok((input, strike_type))
+}
+
+fn parse_ground_out(input: &str) -> ParserResult<ParsedUpdateData> {
+    let (input, batter_name) = parse_terminated(" hit a ground out to ").parse(input)?;
+    // TODO Parsing just a period is fragile; try porting parse_until_period_eof from Fed
+    let (input, fielder_name) = parse_terminated(".").parse(input)?;
+
+    Ok((input, ParsedUpdateData::GroundOut {
+        batter_name, fielder_name
+    }))
 }

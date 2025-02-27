@@ -219,17 +219,62 @@ fn rolls_for_contact(
     rolls
 }
 
+fn rolls_for_foul_or_fair(
+    rng: &mut Rng,
+    th: &Thresholds,
+    game: &sim::GameAtTick,
+    in_strike_zone: Option<bool>,
+    fair: bool,
+) -> Vec<RollData> {
+    let mut rolls = rolls_for_contact(rng, th, game, in_strike_zone, Some(fair));
+
+    rolls.push(RollData::for_threshold(
+        rng,
+        RollPurpose::FairOrFoul,
+        None,
+        None,
+    ));
+
+    rolls
+}
+
 fn rolls_for_foul(
     rng: &mut Rng,
     th: &Thresholds,
     game: &sim::GameAtTick,
     in_strike_zone: Option<bool>,
 ) -> Vec<RollData> {
-    let mut rolls = rolls_for_contact(rng, th, game, in_strike_zone, Some(true));
+    rolls_for_foul_or_fair(rng, th, game, in_strike_zone, false)
+}
+
+fn rolls_for_fair(
+    rng: &mut Rng,
+    th: &Thresholds,
+    game: &sim::GameAtTick,
+    in_strike_zone: Option<bool>,
+) -> Vec<RollData> {
+    rolls_for_foul_or_fair(rng, th, game, in_strike_zone, true)
+}
+
+fn rolls_for_ground_out(
+    rng: &mut Rng,
+    th: &Thresholds,
+    game: &sim::GameAtTick,
+    in_strike_zone: Option<bool>,
+    fielder_name: String,
+) -> Vec<RollData> {
+    let mut rolls = rolls_for_fair(rng, th, game, in_strike_zone);
+
+    rolls.push(RollData::for_choice(
+        rng,
+        RollPurpose::Fielder,
+        0, // TODO
+        None, // TODO
+    ));
 
     rolls.push(RollData::for_threshold(
         rng,
-        RollPurpose::FairOrFoul,
+        RollPurpose::Out(fielder_name),
         None,
         None,
     ));
@@ -260,5 +305,6 @@ pub fn rolls_for_update(
         }
         ParsedUpdateData::StrikeSwinging => rolls_for_contact(rng, th, game, None, Some(true)),
         ParsedUpdateData::StrikeoutSwinging => rolls_for_contact(rng, th, game, None, Some(true)),
+        ParsedUpdateData::GroundOut { fielder_name, .. } => rolls_for_ground_out(rng, th, game, None, fielder_name.to_string()),
     }
 }
