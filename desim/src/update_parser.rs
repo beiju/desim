@@ -7,11 +7,11 @@ use nom::combinator::eof;
 use nom::Parser;
 use thiserror::Error;
 
-pub struct ParsedUpdate<'s> {
-    pub data: ParsedUpdateData<'s>,
+pub struct ParsedUpdate {
+    pub data: ParsedUpdateData,
 }
 
-pub enum ParsedUpdateData<'s> {
+pub enum ParsedUpdateData {
     Empty,
     PlayBall,
     InningTurnover,
@@ -22,10 +22,9 @@ pub enum ParsedUpdateData<'s> {
     StrikeoutLooking,
     StrikeSwinging,
     StrikeoutSwinging,
-    GroundOut {
-        batter_name: &'s str,
-        fielder_name: &'s str,
-    }
+    GroundOut,
+    Flyout,
+    InningEnd,
 }
 
 #[derive(Error, Debug)]
@@ -53,6 +52,8 @@ fn parse_description(input: &str) -> ParserResult<ParsedUpdateData> {
         parse_strikeout,
         parse_strike,
         parse_ground_out,
+        parse_flyout,
+        parse_inning_end,
     ))
     .parse(input)
 }
@@ -127,11 +128,25 @@ fn parse_strike(input: &str) -> ParserResult<ParsedUpdateData> {
 }
 
 fn parse_ground_out(input: &str) -> ParserResult<ParsedUpdateData> {
-    let (input, batter_name) = parse_terminated(" hit a ground out to ").parse(input)?;
+    let (input, _batter_name) = parse_terminated(" hit a ground out to ").parse(input)?;
     // TODO Parsing just a period is fragile; try porting parse_until_period_eof from Fed
-    let (input, fielder_name) = parse_terminated(".").parse(input)?;
+    let (input, _fielder_name) = parse_terminated(".").parse(input)?;
 
-    Ok((input, ParsedUpdateData::GroundOut {
-        batter_name, fielder_name
-    }))
+    Ok((input, ParsedUpdateData::GroundOut))
+}
+
+fn parse_flyout(input: &str) -> ParserResult<ParsedUpdateData> {
+    let (input, _batter_name) = parse_terminated(" hit a flyout to ").parse(input)?;
+    // TODO Parsing just a period is fragile; try porting parse_until_period_eof from Fed
+    let (input, _fielder_name) = parse_terminated(".").parse(input)?;
+
+    Ok((input, ParsedUpdateData::Flyout))
+}
+
+fn parse_inning_end(input: &str) -> ParserResult<ParsedUpdateData> {
+    let (input, _) = tag("Inning ").parse(input)?;
+    let (input, _) = parse_whole_number.parse(input)?;
+    let (input, _) = tag(" is now an Outing.").parse(input)?;
+
+    Ok((input, ParsedUpdateData::InningEnd))
 }

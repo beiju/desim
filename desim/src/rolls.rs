@@ -208,9 +208,8 @@ fn rolls_for_contact(
     rng: &mut Rng,
     th: &Thresholds,
     game: &GameAtTick,
-    in_strike_zone: Option<bool>,
 ) -> Vec<RollData> {
-    let mut rolls = rolls_for_pitch(rng, th, game, in_strike_zone);
+    let mut rolls = rolls_for_pitch(rng, th, game, None);
 
     rolls.push(RollData::for_threshold(
         rng,
@@ -229,7 +228,7 @@ fn rolls_for_foul_or_fair(
     in_strike_zone: Option<bool>,
     fair: bool,
 ) -> Vec<RollData> {
-    let mut rolls = rolls_for_contact(rng, th, game, in_strike_zone);
+    let mut rolls = rolls_for_contact(rng, th, game);
 
     rolls.push(RollData::for_threshold(
         rng,
@@ -259,13 +258,13 @@ fn rolls_for_fair(
     rolls_for_foul_or_fair(rng, th, game, in_strike_zone, true)
 }
 
-fn rolls_for_ground_out(
+fn rolls_for_basic_out(
     rng: &mut Rng,
     th: &Thresholds,
     game: &GameAtTick,
-    in_strike_zone: Option<bool>,
+    is_flyout: bool,
 ) -> Vec<RollData> {
-    let mut rolls = rolls_for_fair(rng, th, game, in_strike_zone);
+    let mut rolls = rolls_for_fair(rng, th, game, None);
 
     let hit_fielder = choose_fielder(rng, game, &mut rolls);
 
@@ -285,10 +284,15 @@ fn rolls_for_ground_out(
         rng,
         RollPurpose::Fly,
         Some(th.fly(game)),
-        Some(false),
+        Some(is_flyout),
     ));
     
-    let _displayed_fielder = choose_fielder(rng, game, &mut rolls);
+    if !is_flyout {
+        // Flyouts don't roll displayed fielder again, but ground outs do.
+        // Presumably TBG is picking one player to catch the ball and then, if
+        // it wasn't a flyout, another player to tag the base/runner.
+        let _displayed_fielder = choose_fielder(rng, game, &mut rolls);
+    }
 
     rolls
 }
@@ -324,11 +328,11 @@ pub fn rolls_for_update(
         ParsedUpdateData::FoulBall => rolls_for_foul(rng, th, game, None),
         // Strikeouts looking are known to be in the strike zone and the player didn't swing
         ParsedUpdateData::StrikeLooking => rolls_for_pitch(rng, th, game, Some(true)),
-        ParsedUpdateData::StrikeoutLooking => {
-            rolls_for_pitch(rng, th, game, Some(true))
-        }
-        ParsedUpdateData::StrikeSwinging => rolls_for_contact(rng, th, game, None),
-        ParsedUpdateData::StrikeoutSwinging => rolls_for_contact(rng, th, game, None),
-        ParsedUpdateData::GroundOut { .. } => rolls_for_ground_out(rng, th, game, None),
+        ParsedUpdateData::StrikeoutLooking => rolls_for_pitch(rng, th, game, Some(true)),
+        ParsedUpdateData::StrikeSwinging => rolls_for_contact(rng, th, game),
+        ParsedUpdateData::StrikeoutSwinging => rolls_for_contact(rng, th, game),
+        ParsedUpdateData::GroundOut => rolls_for_basic_out(rng, th, game, false),
+        ParsedUpdateData::Flyout => rolls_for_basic_out(rng, th, game, true),
+        ParsedUpdateData::InningEnd => vec![],
     }
 }
