@@ -191,6 +191,11 @@ impl Rng {
             from_double_bits(self.state.0 >> 12)
         }
     }
+    
+    pub fn next_value(&self) -> f64 {
+        let mut dup = self.clone();
+        dup.next()
+    }
 
     pub fn next(&mut self) -> f64 {
         self.step(1);

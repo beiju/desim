@@ -101,7 +101,7 @@
                             </td>
                         {% elif roll.usage.Choice %}
                             {% set usage = roll.usage.Choice %}
-                            <td colspan="{{ max_columns - 4 }}"></td>
+                            <td colspan="{{ max_columns - 4 }}">{{ usage.selected_option_description }}</td>
                         {% else %}
                             <td colspan="{{ max_columns - 4 }}">ERROR: Unknown roll usage</td>
                         {% endif %}

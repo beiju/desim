@@ -115,6 +115,18 @@ impl<'a> GameAtTick<'a> {
             vibes: compute_vibes(&batting_lineup[index], self.day),
         }
     }
+    
+    pub fn num_fielders(&self) -> usize {
+        self.pitching_team().lineup.len()
+    }
+
+    pub fn fielder(&self, index: usize) -> PlayerAtTick {
+        let player = &self.pitching_team().lineup[index];
+        PlayerAtTick {
+            player,
+            vibes: compute_vibes(player, self.day),
+        }
+    }
 
     fn batter_match_error(&self, update: &ChroniclerGameUpdate) -> Option<String> {
         let team_batter_count = if update.data.top_of_inning {
@@ -216,6 +228,7 @@ pub enum Attribute {
 
 pub struct Player {
     pub id: Uuid,
+    pub name: String,
     attributes: EnumMap<Attribute, f64>,
 }
 
@@ -229,6 +242,7 @@ impl Player {
 
         Self {
             id: player_id,
+            name: player.data.name.clone(),
             attributes: enum_map! {
                 Attribute::Pressurization => player.data.pressurization,
                 Attribute::Cinnamon => player.data.cinnamon,

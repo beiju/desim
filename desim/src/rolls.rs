@@ -4,6 +4,7 @@ use crate::thresholds::Thresholds;
 use crate::update_parser::{ParsedUpdate, ParsedUpdateData};
 use serde::Serialize;
 use std::fmt::{Display, Formatter};
+use crate::sim::{GameAtTick, PlayerAtTick};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum RollPurpose {
@@ -61,7 +62,7 @@ impl Display for RollPurpose {
                 write!(f, "Did {name} catch the out?")
             }
             RollPurpose::Fly => {
-                write!(f, "TODO what is fly")
+                write!(f, "Was it a flyout?")
             }
             RollPurpose::HomeRun => {
                 write!(f, "Was it a home run?")
@@ -103,6 +104,7 @@ pub enum RollUsage {
     Choice {
         num_options: usize,
         selected_option: Option<usize>,
+        selected_option_description: Option<String>,
     },
 }
 
@@ -134,6 +136,7 @@ impl RollData {
         purpose: RollPurpose,
         num_options: usize,
         selected_option: Option<usize>,
+        selected_option_description: Option<String>,
     ) -> Self {
         rng.step(1);
         Self {
@@ -143,6 +146,7 @@ impl RollData {
             usage: RollUsage::Choice {
                 num_options,
                 selected_option,
+                selected_option_description,
             },
         }
     }
@@ -161,6 +165,7 @@ fn standard_rolls(rng: &mut Rng) -> Vec<RollData> {
         rng,
         RollPurpose::StealFielder,
         0,
+        None,
         None,
     ));
 
@@ -259,27 +264,49 @@ fn rolls_for_fair(
 fn rolls_for_ground_out(
     rng: &mut Rng,
     th: &Thresholds,
-    game: &sim::GameAtTick,
+    game: &GameAtTick,
     in_strike_zone: Option<bool>,
-    fielder_name: String,
+    displayed_fielder_name: String,
 ) -> Vec<RollData> {
     let mut rolls = rolls_for_fair(rng, th, game, in_strike_zone);
 
+    let hit_fielder = choose_fielder(rng, game, &mut rolls);
+
+    // TODO Reverse the definition of this roll: it's currently described as
+    //   "was it an out" but a hit is the pass condition so it should be
+    //   described as "was it a hit"
+    rolls.push(RollData::for_threshold(
+        rng,
+        RollPurpose::Out(hit_fielder.player.name.clone()),
+        Some(th.out(game, &hit_fielder)),
+        Some(false),
+    ));
+
+    let _fly_fielder = choose_fielder(rng, game, &mut rolls);
+    
+    rolls.push(RollData::for_threshold(
+        rng,
+        RollPurpose::Fly,
+        Some(th.fly(game)),
+        Some(false),
+    ));
+    
+    let _displayed_fielder = choose_fielder(rng, game, &mut rolls);
+
+    rolls
+}
+
+fn choose_fielder<'a>(rng: &mut Rng, game: &'a GameAtTick, rolls: &mut Vec<RollData>) -> PlayerAtTick<'a> {
+    let fielder_idx = (rng.next_value() * game.num_fielders() as f64) as usize;
+    let fielder = game.fielder(fielder_idx);
     rolls.push(RollData::for_choice(
         rng,
         RollPurpose::Fielder,
-        0, // TODO
-        None, // TODO
+        game.num_fielders(),
+        Some(fielder_idx),
+        Some(fielder.player.name.clone()),
     ));
-
-    rolls.push(RollData::for_threshold(
-        rng,
-        RollPurpose::Out(fielder_name),
-        None,
-        None,
-    ));
-
-    rolls
+    fielder
 }
 
 pub fn rolls_for_update(
