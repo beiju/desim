@@ -25,6 +25,7 @@ pub enum ParsedUpdateData {
     GroundOut,
     Flyout,
     InningEnd,
+    Hit,
 }
 
 #[derive(Error, Debug)]
@@ -54,6 +55,7 @@ fn parse_description(input: &str) -> ParserResult<ParsedUpdateData> {
         parse_ground_out,
         parse_flyout,
         parse_inning_end,
+        parse_hit,
     ))
     .parse(input)
 }
@@ -149,4 +151,11 @@ fn parse_inning_end(input: &str) -> ParserResult<ParsedUpdateData> {
     let (input, _) = tag(" is now an Outing.").parse(input)?;
 
     Ok((input, ParsedUpdateData::InningEnd))
+}
+
+fn parse_hit(input: &str) -> ParserResult<ParsedUpdateData> {
+    // TODO: Other kinds of hit
+    let (input, _batter_name) = parse_terminated(" hits a Single!").parse(input)?;
+
+    Ok((input, ParsedUpdateData::Hit))
 }

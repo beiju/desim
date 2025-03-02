@@ -254,17 +254,9 @@ fn rolls_for_fair(
     th: &Thresholds,
     game: &GameAtTick,
     in_strike_zone: Option<bool>,
+    is_hit: bool,
 ) -> Vec<RollData> {
-    rolls_for_foul_or_fair(rng, th, game, in_strike_zone, true)
-}
-
-fn rolls_for_basic_out(
-    rng: &mut Rng,
-    th: &Thresholds,
-    game: &GameAtTick,
-    is_flyout: bool,
-) -> Vec<RollData> {
-    let mut rolls = rolls_for_fair(rng, th, game, None);
+    let mut rolls = rolls_for_foul_or_fair(rng, th, game, in_strike_zone, true);
 
     let hit_fielder = choose_fielder(rng, game, &mut rolls);
 
@@ -275,8 +267,19 @@ fn rolls_for_basic_out(
         rng,
         RollPurpose::Out(hit_fielder.player.name.clone()),
         Some(th.out(game, &hit_fielder)),
-        Some(false),
+        Some(is_hit),
     ));
+    
+    rolls
+}
+
+fn rolls_for_basic_out(
+    rng: &mut Rng,
+    th: &Thresholds,
+    game: &GameAtTick,
+    is_flyout: bool,
+) -> Vec<RollData> {
+    let mut rolls = rolls_for_fair(rng, th, game, None, false);
 
     let _fly_fielder = choose_fielder(rng, game, &mut rolls);
     
@@ -293,6 +296,39 @@ fn rolls_for_basic_out(
         // it wasn't a flyout, another player to tag the base/runner.
         let _displayed_fielder = choose_fielder(rng, game, &mut rolls);
     }
+
+    rolls
+}
+
+fn rolls_for_hit(
+    rng: &mut Rng,
+    th: &Thresholds,
+    game: &GameAtTick,
+) -> Vec<RollData> {
+    let mut rolls = rolls_for_fair(rng, th, game, None, true);
+
+    rolls.push(RollData::for_threshold(
+        rng,
+        RollPurpose::HomeRun,
+        Some(th.hr(game)),
+        Some(false),
+    ));
+
+    let fielder = choose_fielder(rng, game, &mut rolls);
+
+    rolls.push(RollData::for_threshold(
+        rng,
+        RollPurpose::Double(fielder.player.name.clone()),
+        Some(th.double(game, &fielder)),
+        Some(false),
+    ));
+
+    rolls.push(RollData::for_threshold(
+        rng,
+        RollPurpose::Triple(fielder.player.name.clone()),
+        Some(th.triple(game, &fielder)),
+        Some(false),
+    ));
 
     rolls
 }
@@ -334,5 +370,6 @@ pub fn rolls_for_update(
         ParsedUpdateData::GroundOut => rolls_for_basic_out(rng, th, game, false),
         ParsedUpdateData::Flyout => rolls_for_basic_out(rng, th, game, true),
         ParsedUpdateData::InningEnd => vec![],
+        ParsedUpdateData::Hit => rolls_for_hit(rng, th, game),
     }
 }

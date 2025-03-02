@@ -66,7 +66,7 @@ body {
 
 .gameday-ticks .tick-label {
     position: absolute;
-    left: -64px;
+    right: 810px;
     text-wrap: nowrap;
     background: var(--tick-label-color);
     border-radius: 6px 0 0 6px;
@@ -76,7 +76,6 @@ body {
     text-transform: uppercase;
     text-shadow: rgba(0, 0, 0, 0.3) 0 1px 1px;
     font-size: 12px;
-    width: 41px;
 }
 
 .gameday-ticks .tick-label::after {

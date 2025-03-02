@@ -102,25 +102,25 @@ impl Thresholds {
         let forwardness = 0.5;
         let obtuseness = 0.5;
 
-        let musclitude = game
+        let batter_musclitude = game
             .batter()
             .attribute(Attribute::Musclitude)
             .multiplied()
             .vibed(batter_vibes);
 
-        let thwackability = game
+        let batter_thwackability = game
             .batter()
             .attribute(Attribute::Thwackability)
             .multiplied()
             .vibed(batter_vibes);
 
-        let divinity = game
+        let batter_divinity = game
             .batter()
             .attribute(Attribute::Divinity)
             .multiplied()
             .vibed(batter_vibes);
 
-        let batter_sum = (musclitude + thwackability + divinity) / 3.0;
+        let batter_sum = (batter_musclitude + batter_thwackability + batter_divinity) / 3.0;
 
         0.25 + 0.1 * forwardness - 0.1 * obtuseness + 0.1 * batter_sum
     }
@@ -188,10 +188,119 @@ impl Thresholds {
 
         let stadium_ominousness = 0.5;
 
-        let threshold = 0.18 
+        let threshold = 0.18
             + 0.3 * batter_buoyancy
-            - 0.16 * suppression 
+            - 0.16 * suppression
             - 0.1 * (stadium_ominousness - 0.5);
         threshold.max(0.01)
+    }
+
+    pub fn hr(&self, game: &sim::GameAtTick) -> f64 {
+        let batter_vibes = game.batter().vibes;
+        let pitcher_vibes = game.pitcher().vibes;
+
+        let batter_divinity = game
+            .batter()
+            .attribute(Attribute::Divinity)
+            .multiplied()
+            .vibed(batter_vibes);
+
+        let pitcher_overpowerment = game
+            .pitcher()
+            .attribute(Attribute::Overpowerment)
+            .multiplied()
+            .vibed(pitcher_vibes);
+
+        let pitcher_suppression = game
+            .pitcher()
+            .attribute(Attribute::Suppression)
+            .multiplied()
+            .vibed(pitcher_vibes);
+
+        let stadium_grandiosity = 0.5;
+        let stadium_fortification = 0.5;
+        let stadium_viscosity = 0.5;
+        let stadium_ominousness = 0.5;
+        let stadium_forwardness = 0.5;
+        let ballpark_sum = 0.4 * (stadium_grandiosity - 0.5)
+            + 0.2 * (stadium_fortification - 0.5)
+            + 0.08 * (stadium_viscosity - 0.5)
+            + 0.08 * (stadium_ominousness - 0.5)
+            - 0.24 * (stadium_forwardness - 0.5);
+
+        let opw_supp = (10.0 * pitcher_overpowerment + pitcher_suppression) / 11.0;
+        0.12 + 0.16 * batter_divinity - 0.08 * opw_supp - 0.18 * ballpark_sum
+    }
+
+    pub fn double(&self, game: &sim::GameAtTick, fielder: &PlayerAtTick) -> f64 {
+        let batter_vibes = game.batter().vibes;
+        let pitcher_vibes = game.pitcher().vibes;
+        let fielder_vibes = fielder.vibes;
+
+        let batter_musclitude = game
+            .batter()
+            .attribute(Attribute::Musclitude)
+            .multiplied()
+            .vibed(batter_vibes);
+
+        let pitcher_overpowerment = game
+            .pitcher()
+            .attribute(Attribute::Overpowerment)
+            .multiplied()
+            .vibed(pitcher_vibes);
+
+        let fielder_chasiness = fielder
+            .attribute(Attribute::Chasiness)
+            .multiplied()
+            .vibed(fielder_vibes);
+
+        let stadium_forwardness = 0.5;
+        let stadium_elongation = 0.5;
+        let stadium_viscosity = 0.5;
+        let stadium_ominousness = 0.5;
+        let ballpark_sum = 0.027 * (stadium_forwardness - 0.5)
+            - 0.015 * (stadium_elongation - 0.5)
+            + 0.01 * (stadium_ominousness - 0.5)
+            + 0.008 * (stadium_viscosity - 0.5);
+
+        0.17 + 0.2 * batter_musclitude - 0.04 * pitcher_overpowerment - 0.1 * fielder_chasiness + ballpark_sum
+    }
+
+    pub fn triple(&self, game: &sim::GameAtTick, fielder: &PlayerAtTick) -> f64 {
+        let batter_vibes = game.batter().vibes;
+        let pitcher_vibes = game.pitcher().vibes;
+        let fielder_vibes = fielder.vibes;
+
+        let batter_ground_friction = game
+            .batter()
+            .attribute(Attribute::GroundFriction)
+            .multiplied()
+            .vibed(batter_vibes);
+
+        let pitcher_overpowerment = game
+            .pitcher()
+            .attribute(Attribute::Overpowerment)
+            .multiplied()
+            .vibed(pitcher_vibes);
+
+        let fielder_chasiness = fielder
+            .attribute(Attribute::Chasiness)
+            .multiplied()
+            .vibed(fielder_vibes);
+
+        let stadium_forwardness = 0.5;
+        let stadium_grandiosity = 0.5;
+        let stadium_obtuseness = 0.5;
+        let stadium_viscosity = 0.5;
+        let stadium_ominousness = 0.5;
+        let ballpark_sum = (
+            3.0 * (stadium_forwardness - 0.5)
+            - 5.0 * (stadium_grandiosity - 0.5)
+            + 5.0 * (stadium_obtuseness - 0.5)
+            + 1.0 * (stadium_viscosity - 0.5)
+            + 1.0 * (stadium_ominousness - 0.5)
+        ) / 15.0;
+
+        0.05 + 0.2 * batter_ground_friction - 0.04 * pitcher_overpowerment - 0.06 * fielder_chasiness + 0.1 * ballpark_sum
     }
 }
