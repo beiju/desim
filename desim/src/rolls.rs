@@ -1,10 +1,10 @@
-use crate::rng::Rng;
-use crate::sim;
-use crate::thresholds::Thresholds;
-use crate::update_parser::{ParsedUpdate, ParsedUpdateData};
 use serde::Serialize;
 use std::fmt::{Display, Formatter};
+
+use crate::rng::Rng;
 use crate::sim::{GameAtTick, PlayerAtTick};
+use crate::thresholds::Thresholds;
+use crate::update_parser::{ParsedUpdate, ParsedUpdateData};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum RollPurpose {
@@ -175,9 +175,8 @@ fn standard_rolls(rng: &mut Rng) -> Vec<RollData> {
 fn rolls_for_pitch(
     rng: &mut Rng,
     th: &Thresholds,
-    game: &sim::GameAtTick,
+    game: &GameAtTick,
     in_strike_zone: Option<bool>,
-    player_swung: Option<bool>,
 ) -> Vec<RollData> {
     let mut rolls = standard_rolls(rng);
 
@@ -208,11 +207,10 @@ fn rolls_for_pitch(
 fn rolls_for_contact(
     rng: &mut Rng,
     th: &Thresholds,
-    game: &sim::GameAtTick,
+    game: &GameAtTick,
     in_strike_zone: Option<bool>,
-    made_contact: Option<bool>,
 ) -> Vec<RollData> {
-    let mut rolls = rolls_for_pitch(rng, th, game, in_strike_zone, Some(true));
+    let mut rolls = rolls_for_pitch(rng, th, game, in_strike_zone);
 
     rolls.push(RollData::for_threshold(
         rng,
@@ -227,11 +225,11 @@ fn rolls_for_contact(
 fn rolls_for_foul_or_fair(
     rng: &mut Rng,
     th: &Thresholds,
-    game: &sim::GameAtTick,
+    game: &GameAtTick,
     in_strike_zone: Option<bool>,
     fair: bool,
 ) -> Vec<RollData> {
-    let mut rolls = rolls_for_contact(rng, th, game, in_strike_zone, Some(fair));
+    let mut rolls = rolls_for_contact(rng, th, game, in_strike_zone);
 
     rolls.push(RollData::for_threshold(
         rng,
@@ -246,7 +244,7 @@ fn rolls_for_foul_or_fair(
 fn rolls_for_foul(
     rng: &mut Rng,
     th: &Thresholds,
-    game: &sim::GameAtTick,
+    game: &GameAtTick,
     in_strike_zone: Option<bool>,
 ) -> Vec<RollData> {
     rolls_for_foul_or_fair(rng, th, game, in_strike_zone, false)
@@ -255,7 +253,7 @@ fn rolls_for_foul(
 fn rolls_for_fair(
     rng: &mut Rng,
     th: &Thresholds,
-    game: &sim::GameAtTick,
+    game: &GameAtTick,
     in_strike_zone: Option<bool>,
 ) -> Vec<RollData> {
     rolls_for_foul_or_fair(rng, th, game, in_strike_zone, true)
@@ -266,7 +264,6 @@ fn rolls_for_ground_out(
     th: &Thresholds,
     game: &GameAtTick,
     in_strike_zone: Option<bool>,
-    displayed_fielder_name: String,
 ) -> Vec<RollData> {
     let mut rolls = rolls_for_fair(rng, th, game, in_strike_zone);
 
@@ -313,7 +310,7 @@ pub fn rolls_for_update(
     rng: &mut Rng,
     update: &ParsedUpdate,
     th: &Thresholds,
-    game: &sim::GameAtTick,
+    game: &GameAtTick,
 ) -> Vec<RollData> {
     match update.data {
         // No rolls for these updates
@@ -322,16 +319,16 @@ pub fn rolls_for_update(
         ParsedUpdateData::InningTurnover => vec![],
         ParsedUpdateData::BatterUp => vec![],
         // Balls are known to not be in the strike zone and the player didn't swing
-        ParsedUpdateData::Ball => rolls_for_pitch(rng, th, game, Some(false), Some(false)),
+        ParsedUpdateData::Ball => rolls_for_pitch(rng, th, game, Some(false)),
         // Fouls may be in or out of the strike zone
         ParsedUpdateData::FoulBall => rolls_for_foul(rng, th, game, None),
         // Strikeouts looking are known to be in the strike zone and the player didn't swing
-        ParsedUpdateData::StrikeLooking => rolls_for_pitch(rng, th, game, Some(true), Some(true)),
+        ParsedUpdateData::StrikeLooking => rolls_for_pitch(rng, th, game, Some(true)),
         ParsedUpdateData::StrikeoutLooking => {
-            rolls_for_pitch(rng, th, game, Some(true), Some(true))
+            rolls_for_pitch(rng, th, game, Some(true))
         }
-        ParsedUpdateData::StrikeSwinging => rolls_for_contact(rng, th, game, None, Some(true)),
-        ParsedUpdateData::StrikeoutSwinging => rolls_for_contact(rng, th, game, None, Some(true)),
-        ParsedUpdateData::GroundOut { fielder_name, .. } => rolls_for_ground_out(rng, th, game, None, fielder_name.to_string()),
+        ParsedUpdateData::StrikeSwinging => rolls_for_contact(rng, th, game, None),
+        ParsedUpdateData::StrikeoutSwinging => rolls_for_contact(rng, th, game, None),
+        ParsedUpdateData::GroundOut { .. } => rolls_for_ground_out(rng, th, game, None),
     }
 }

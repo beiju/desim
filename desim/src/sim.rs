@@ -318,6 +318,7 @@ impl AttributeValue {
 }
 
 
+//noinspection ALL
 // Corresponds to SIN_PHASES in resim sin_values.py, but with the outer layer
 // converted from a dict to a vec. This means that the first index into this
 // data structure must be 6 less than it would be for SIN_PHASES.
