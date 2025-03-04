@@ -160,9 +160,10 @@ fn standard_rolls(rng: &mut Rng, game: &GameAtTick) -> Vec<RollData> {
         None,
         None,
     ));
-    
-    let _steal_fielder = choose_fielder_for_purpose(rng, game, &mut rolls, RollPurpose::StealFielder);
-    
+
+    let _steal_fielder =
+        choose_fielder_for_purpose(rng, game, &mut rolls, RollPurpose::StealFielder);
+
     for (current_base, _runner) in game.runners_at_start() {
         rolls.push(RollData::for_threshold(
             rng,
@@ -207,11 +208,7 @@ fn rolls_for_pitch(
     rolls
 }
 
-fn rolls_for_contact(
-    rng: &mut Rng,
-    th: &Thresholds,
-    game: &GameAtTick,
-) -> Vec<RollData> {
+fn rolls_for_contact(rng: &mut Rng, th: &Thresholds, game: &GameAtTick) -> Vec<RollData> {
     let mut rolls = rolls_for_pitch(rng, th, game, None);
 
     rolls.push(RollData::for_threshold(
@@ -242,11 +239,7 @@ fn rolls_for_foul_or_fair(
     rolls
 }
 
-fn rolls_for_foul(
-    rng: &mut Rng,
-    th: &Thresholds,
-    game: &GameAtTick,
-) -> Vec<RollData> {
+fn rolls_for_foul(rng: &mut Rng, th: &Thresholds, game: &GameAtTick) -> Vec<RollData> {
     rolls_for_foul_or_fair(rng, th, game, false)
 }
 
@@ -269,7 +262,57 @@ fn rolls_for_fair(
         Some(th.out(game, &hit_fielder)),
         Some(is_hit),
     ));
-    
+
+    rolls
+}
+
+fn rolls_for_out(
+    rng: &mut Rng,
+    th: &Thresholds,
+    game: &GameAtTick,
+    is_flyout: bool,
+    is_dp: bool,
+) -> Vec<RollData> {
+    let mut rolls = rolls_for_fair(rng, th, game, false);
+
+    let _fly_fielder = choose_fielder(rng, game, &mut rolls);
+
+    rolls.push(RollData::for_threshold(
+        rng,
+        RollPurpose::Fly,
+        Some(th.fly(game)),
+        Some(is_flyout),
+    ));
+
+    if !is_flyout {
+        // Flyouts don't roll displayed fielder again, but ground outs do.
+        // Presumably TBG is picking one player to catch the ball and then, if
+        // it wasn't a flyout, another player to tag the base/runner.
+        let _displayed_fielder = choose_fielder(rng, game, &mut rolls);
+    }
+
+    let eligible_for_double_play =
+        !game.runners_at_start.is_empty() && game.outs + 1 >= game.max_outs;
+
+    if eligible_for_double_play {
+        rolls.push(RollData::for_threshold(
+            rng,
+            RollPurpose::DoublePlayHappens,
+            None,
+            None,
+        ));
+
+        if is_dp {
+            rolls.push(RollData::for_choice(
+                rng,
+                RollPurpose::DoublePlayWhere,
+                game.runners_at_start.len(), // TODO: Remove forced scores?
+                None,
+                None,
+            ));
+        }
+    }
+
     rolls
 }
 
@@ -279,32 +322,10 @@ fn rolls_for_basic_out(
     game: &GameAtTick,
     is_flyout: bool,
 ) -> Vec<RollData> {
-    let mut rolls = rolls_for_fair(rng, th, game, false);
-
-    let _fly_fielder = choose_fielder(rng, game, &mut rolls);
-    
-    rolls.push(RollData::for_threshold(
-        rng,
-        RollPurpose::Fly,
-        Some(th.fly(game)),
-        Some(is_flyout),
-    ));
-    
-    if !is_flyout {
-        // Flyouts don't roll displayed fielder again, but ground outs do.
-        // Presumably TBG is picking one player to catch the ball and then, if
-        // it wasn't a flyout, another player to tag the base/runner.
-        let _displayed_fielder = choose_fielder(rng, game, &mut rolls);
-    }
-
-    rolls
+    rolls_for_out(rng, th, game, is_flyout, false)
 }
 
-fn rolls_for_hit(
-    rng: &mut Rng,
-    th: &Thresholds,
-    game: &GameAtTick,
-) -> Vec<RollData> {
+fn rolls_for_hit(rng: &mut Rng, th: &Thresholds, game: &GameAtTick) -> Vec<RollData> {
     let mut rolls = rolls_for_fair(rng, th, game, true);
 
     rolls.push(RollData::for_threshold(
@@ -333,14 +354,16 @@ fn rolls_for_hit(
     for (base, runner) in game.runners_at_start() {
         // TODO Support Hits other than Singles
         let base_after_automatic_advance = base + 1;
-        let base_at_end = game.runners_at_end.iter()
+        let base_at_end = game
+            .runners_at_end
+            .iter()
             .find(|r| r.runner_id == runner.player.id)
             .map(|r| r.base)
             // If the runner isn't in runners_at_end, assume they scored. For
             // now I'm notating that as 4.
             .unwrap_or(4);
 
-        let advanced = if base_at_end == base_after_automatic_advance  {
+        let advanced = if base_at_end == base_after_automatic_advance {
             false
         } else if base_at_end == base_after_automatic_advance + 1 {
             true
@@ -361,11 +384,24 @@ fn rolls_for_hit(
     rolls
 }
 
-fn choose_fielder<'a>(rng: &mut Rng, game: &'a GameAtTick, rolls: &mut Vec<RollData>) -> PlayerAtTick<'a> {
+fn rolls_for_double_play(rng: &mut Rng, th: &Thresholds, game: &GameAtTick) -> Vec<RollData> {
+    rolls_for_out(rng, th, game, false, true)
+}
+
+fn choose_fielder<'a>(
+    rng: &mut Rng,
+    game: &'a GameAtTick,
+    rolls: &mut Vec<RollData>,
+) -> PlayerAtTick<'a> {
     choose_fielder_for_purpose(rng, game, rolls, RollPurpose::Fielder)
 }
 
-fn choose_fielder_for_purpose<'a>(rng: &mut Rng, game: &'a GameAtTick, rolls: &mut Vec<RollData>, purpose: RollPurpose) -> PlayerAtTick<'a> {
+fn choose_fielder_for_purpose<'a>(
+    rng: &mut Rng,
+    game: &'a GameAtTick,
+    rolls: &mut Vec<RollData>,
+    purpose: RollPurpose,
+) -> PlayerAtTick<'a> {
     let fielder_idx = (rng.next_value() * game.num_fielders() as f64) as usize;
     let fielder = game.fielder(fielder_idx);
     rolls.push(RollData::for_choice(
@@ -403,5 +439,6 @@ pub fn rolls_for_update(
         ParsedUpdateData::Flyout => rolls_for_basic_out(rng, th, game, true),
         ParsedUpdateData::InningEnd => vec![],
         ParsedUpdateData::Hit => rolls_for_hit(rng, th, game),
+        ParsedUpdateData::DoublePlay => rolls_for_double_play(rng, th, game),
     }
 }

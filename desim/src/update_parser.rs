@@ -26,6 +26,7 @@ pub enum ParsedUpdateData {
     Flyout,
     InningEnd,
     Hit,
+    DoublePlay,
 }
 
 #[derive(Error, Debug)]
@@ -56,6 +57,7 @@ fn parse_description(input: &str) -> ParserResult<ParsedUpdateData> {
         parse_flyout,
         parse_inning_end,
         parse_hit,
+        parse_double_play,
     ))
     .parse(input)
 }
@@ -158,4 +160,12 @@ fn parse_hit(input: &str) -> ParserResult<ParsedUpdateData> {
     let (input, _batter_name) = parse_terminated(" hits a Single!").parse(input)?;
 
     Ok((input, ParsedUpdateData::Hit))
+}
+
+fn parse_double_play(input: &str) -> ParserResult<ParsedUpdateData> {
+    // This assumes there's always a score which I don't think is the case
+    let (input, _batter_name) = parse_terminated(" hit into a double play!\n").parse(input)?;
+    let (input, _runner_name) = parse_terminated(" scores!").parse(input)?;
+
+    Ok((input, ParsedUpdateData::DoublePlay))
 }
