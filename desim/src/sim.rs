@@ -34,6 +34,11 @@ impl GameTeam {
 pub struct Game {
     away_team: GameTeam,
     home_team: GameTeam,
+
+    // We need the previous event's baserunners to compute the rolls for this
+    // event, so it needs to be stored on the game
+    prev: Option<Vec<RunnerOnBase>>,
+
 }
 
 impl Game {
@@ -43,10 +48,12 @@ impl Game {
         Game {
             away_team,
             home_team,
+            prev: None,
         }
     }
 
-    pub fn at_tick(&self, game_update: &ChroniclerGameUpdate) -> GameAtTick {
+    pub fn at_tick<'a>(&'a mut self, game_update: &'a ChroniclerGameUpdate) -> GameAtTick<'a> {
+        let prev = self.prev.take();
         let half = if game_update.data.top_of_inning {
             HalfInning::Top
         } else {
@@ -61,7 +68,15 @@ impl Game {
                 HalfInning::Top => game_update.data.away_team_batter_count,
                 HalfInning::Bottom => game_update.data.home_team_batter_count,
             },
+            runners_at_start: prev.unwrap_or_default(),
+            runners_at_end: iter::zip(&game_update.data.bases_occupied, &game_update.data.base_runners)
+                .map(|(&base, &runner_id)| RunnerOnBase { base, runner_id })
+                .collect(),
         }
+    }
+    
+    pub fn set_prev(&mut self, prev: Vec<RunnerOnBase>) {
+        self.prev = Some(prev);
     }
 }
 
@@ -69,6 +84,11 @@ impl Game {
 pub enum HalfInning {
     Top,
     Bottom,
+}
+
+pub struct RunnerOnBase {
+    base: i64,
+    runner_id: Uuid,
 }
 
 // `Game` is data that's true for the whole game, while GameState may change per tick
@@ -80,6 +100,8 @@ pub struct GameAtTick<'a> {
     // I found it more convenient to use the batter count, which I can convert into an index into
     // the lineup, rather than the batter ID which I would have to search the lineup for
     pub batter_count: i64,
+    pub runners_at_start: Vec<RunnerOnBase>,
+    pub runners_at_end: Vec<RunnerOnBase>,
 }
 
 impl<'a> GameAtTick<'a> {
@@ -115,7 +137,7 @@ impl<'a> GameAtTick<'a> {
             vibes: compute_vibes(&batting_lineup[index], self.day),
         }
     }
-    
+
     pub fn num_fielders(&self) -> usize {
         self.pitching_team().lineup.len()
     }
@@ -126,6 +148,23 @@ impl<'a> GameAtTick<'a> {
             player,
             vibes: compute_vibes(player, self.day),
         }
+    }
+
+    pub fn runners_at_start(&self) -> impl Iterator<Item=(i64, PlayerAtTick<'_>)> {
+        self.runners_at_start.iter()
+            .flat_map(move |on_base| {
+                let player = &self.batting_team().lineup.iter()
+                    .find(|player| player.id == on_base.runner_id)
+                    // This is going to break for Attractors, isn't it...
+                    .expect("Every uuid in base_runners must be a Player in the batting team's lineup");
+                let player_at_tick = PlayerAtTick {
+                    player,
+                    vibes: compute_vibes(player, self.day),
+                };
+
+                Some((on_base.base, player_at_tick))
+            })
+
     }
 
     fn batter_match_error(&self, update: &ChroniclerGameUpdate) -> Option<String> {

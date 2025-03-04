@@ -152,7 +152,7 @@ impl RollData {
     }
 }
 
-fn standard_rolls(rng: &mut Rng) -> Vec<RollData> {
+fn standard_rolls(rng: &mut Rng, game: &GameAtTick) -> Vec<RollData> {
     let mut rolls = Vec::new();
     rolls.push(RollData::for_threshold(
         rng,
@@ -160,14 +160,17 @@ fn standard_rolls(rng: &mut Rng) -> Vec<RollData> {
         None,
         None,
     ));
-    // TODO Supply roll fielder choice when known
-    rolls.push(RollData::for_choice(
-        rng,
-        RollPurpose::StealFielder,
-        0,
-        None,
-        None,
-    ));
+    
+    let _steal_fielder = choose_fielder_for_purpose(rng, game, &mut rolls, RollPurpose::StealFielder);
+    
+    for (current_base, runner) in game.runners_at_start() {
+        rolls.push(RollData::for_threshold(
+            rng,
+            RollPurpose::Steal(current_base),
+            None,
+            None,
+        ));
+    }
 
     rolls
 }
@@ -178,7 +181,7 @@ fn rolls_for_pitch(
     game: &GameAtTick,
     in_strike_zone: Option<bool>,
 ) -> Vec<RollData> {
-    let mut rolls = standard_rolls(rng);
+    let mut rolls = standard_rolls(rng, game);
 
     rolls.push(RollData::for_threshold(
         rng,
@@ -334,11 +337,15 @@ fn rolls_for_hit(
 }
 
 fn choose_fielder<'a>(rng: &mut Rng, game: &'a GameAtTick, rolls: &mut Vec<RollData>) -> PlayerAtTick<'a> {
+    choose_fielder_for_purpose(rng, game, rolls, RollPurpose::Fielder)
+}
+
+fn choose_fielder_for_purpose<'a>(rng: &mut Rng, game: &'a GameAtTick, rolls: &mut Vec<RollData>, purpose: RollPurpose) -> PlayerAtTick<'a> {
     let fielder_idx = (rng.next_value() * game.num_fielders() as f64) as usize;
     let fielder = game.fielder(fielder_idx);
     rolls.push(RollData::for_choice(
         rng,
-        RollPurpose::Fielder,
+        purpose,
         game.num_fielders(),
         Some(fielder_idx),
         Some(fielder.player.name.clone()),

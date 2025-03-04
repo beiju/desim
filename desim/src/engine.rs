@@ -11,6 +11,7 @@ use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use thiserror::Error;
 use uuid::Uuid;
+use crate::sim::{GameAtTick, RunnerOnBase};
 
 // Engine's job is to:
 // - ingest a (hopefully chronological) stream of updates
@@ -461,7 +462,7 @@ impl Engine {
 
 // Sadly, this can't be an
 fn run_game_tick(
-    game: &sim::Game,
+    game: &mut sim::Game,
     update: ChroniclerGameUpdate,
     th: &Thresholds,
     rng: &mut Rng,
@@ -492,6 +493,8 @@ fn run_game_tick(
                 })
                 .collect::<Result<_, _>>()?;
 
+            let prev = game_at_tick.runners_at_end;
+            game.set_prev(prev);
             Ok(GameTickContext {
                 game_label,
                 description: update.data.last_update,
@@ -502,6 +505,8 @@ fn run_game_tick(
         }
         Err(err) => {
             errors.push(format!("Parse error: {err}"));
+            let prev = game_at_tick.runners_at_end;
+            game.set_prev(prev);
             Ok(GameTickContext {
                 game_label,
                 description: update.data.last_update,
