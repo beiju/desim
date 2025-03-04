@@ -8,9 +8,7 @@ static THRESHOLDS_JSON: &str = include_str!(concat!(
 ));
 
 #[derive(Debug, Deserialize)]
-pub struct Thresholds {
-    pub(crate) weather: f64,
-}
+pub struct Thresholds {}
 
 trait Vibable {
     fn vibed(self: &Self, vibes: f64) -> f64;
@@ -47,6 +45,7 @@ impl Thresholds {
         threshold.min(0.9)
     }
 
+    #[allow(dead_code)] // TODO Remove once this is called for real
     pub fn swing(&self, in_zone: bool, game: &sim::GameAtTick) -> f64 {
         if in_zone {
             self.swing_on_pitch_in_zone(game)
@@ -125,10 +124,7 @@ impl Thresholds {
         0.25 + 0.1 * forwardness - 0.1 * obtuseness + 0.1 * batter_sum
     }
 
-    pub fn made_contact(&self) -> f64 {
-        0.2 // TODO
-    }
-
+    #[allow(dead_code)] // TODO Remove once this is called for real
     pub fn mild_pitch(&self) -> f64 {
         // Mysticism was always treated as 0.5 in s12
         let mysticism = 0.5;

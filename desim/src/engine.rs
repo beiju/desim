@@ -11,7 +11,6 @@ use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use thiserror::Error;
 use uuid::Uuid;
-use crate::sim::{GameAtTick, RunnerOnBase};
 
 // Engine's job is to:
 // - ingest a (hopefully chronological) stream of updates

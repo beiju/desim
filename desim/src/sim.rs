@@ -61,7 +61,6 @@ impl Game {
         };
         GameAtTick {
             game: self,
-            season: game_update.data.season,
             day: game_update.data.day,
             half,
             batter_count: match half {
@@ -74,7 +73,7 @@ impl Game {
                 .collect(),
         }
     }
-    
+
     pub fn set_prev(&mut self, prev: Vec<RunnerOnBase>) {
         self.prev = Some(prev);
     }
@@ -94,7 +93,6 @@ pub struct RunnerOnBase {
 // `Game` is data that's true for the whole game, while GameState may change per tick
 pub struct GameAtTick<'a> {
     pub game: &'a Game,
-    pub season: i64,
     pub day: i64,
     pub half: HalfInning,
     // I found it more convenient to use the batter count, which I can convert into an index into
@@ -326,6 +324,7 @@ impl<'a> PlayerAtTick<'a> {
 }
 
 pub struct AttributeValue {
+    #[allow(dead_code)] // I know this will be used eventually
     pub attribute: Attribute,
     pub base_value: f64,
 }

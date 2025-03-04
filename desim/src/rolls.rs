@@ -163,7 +163,7 @@ fn standard_rolls(rng: &mut Rng, game: &GameAtTick) -> Vec<RollData> {
     
     let _steal_fielder = choose_fielder_for_purpose(rng, game, &mut rolls, RollPurpose::StealFielder);
     
-    for (current_base, runner) in game.runners_at_start() {
+    for (current_base, _runner) in game.runners_at_start() {
         rolls.push(RollData::for_threshold(
             rng,
             RollPurpose::Steal(current_base),
@@ -228,7 +228,6 @@ fn rolls_for_foul_or_fair(
     rng: &mut Rng,
     th: &Thresholds,
     game: &GameAtTick,
-    in_strike_zone: Option<bool>,
     fair: bool,
 ) -> Vec<RollData> {
     let mut rolls = rolls_for_contact(rng, th, game);
@@ -247,19 +246,17 @@ fn rolls_for_foul(
     rng: &mut Rng,
     th: &Thresholds,
     game: &GameAtTick,
-    in_strike_zone: Option<bool>,
 ) -> Vec<RollData> {
-    rolls_for_foul_or_fair(rng, th, game, in_strike_zone, false)
+    rolls_for_foul_or_fair(rng, th, game, false)
 }
 
 fn rolls_for_fair(
     rng: &mut Rng,
     th: &Thresholds,
     game: &GameAtTick,
-    in_strike_zone: Option<bool>,
     is_hit: bool,
 ) -> Vec<RollData> {
-    let mut rolls = rolls_for_foul_or_fair(rng, th, game, in_strike_zone, true);
+    let mut rolls = rolls_for_foul_or_fair(rng, th, game, true);
 
     let hit_fielder = choose_fielder(rng, game, &mut rolls);
 
@@ -282,7 +279,7 @@ fn rolls_for_basic_out(
     game: &GameAtTick,
     is_flyout: bool,
 ) -> Vec<RollData> {
-    let mut rolls = rolls_for_fair(rng, th, game, None, false);
+    let mut rolls = rolls_for_fair(rng, th, game, false);
 
     let _fly_fielder = choose_fielder(rng, game, &mut rolls);
     
@@ -308,7 +305,7 @@ fn rolls_for_hit(
     th: &Thresholds,
     game: &GameAtTick,
 ) -> Vec<RollData> {
-    let mut rolls = rolls_for_fair(rng, th, game, None, true);
+    let mut rolls = rolls_for_fair(rng, th, game, true);
 
     rolls.push(RollData::for_threshold(
         rng,
@@ -368,7 +365,7 @@ pub fn rolls_for_update(
         // Balls are known to not be in the strike zone and the player didn't swing
         ParsedUpdateData::Ball => rolls_for_pitch(rng, th, game, Some(false)),
         // Fouls may be in or out of the strike zone
-        ParsedUpdateData::FoulBall => rolls_for_foul(rng, th, game, None),
+        ParsedUpdateData::FoulBall => rolls_for_foul(rng, th, game),
         // Strikeouts looking are known to be in the strike zone and the player didn't swing
         ParsedUpdateData::StrikeLooking => rolls_for_pitch(rng, th, game, Some(true)),
         ParsedUpdateData::StrikeoutLooking => rolls_for_pitch(rng, th, game, Some(true)),

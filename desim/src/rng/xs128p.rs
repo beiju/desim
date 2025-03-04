@@ -51,11 +51,6 @@ pub fn from_double_bits_v10(s0: u64, s1: u64) -> f64 {
     f64::from_bits(full) - 1.0
 }
 
-pub fn to_double_bits(val: f64) -> u64 {
-    let bits = (val + 1.0).to_bits();
-    return bits & ((1 << 52) - 1);
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

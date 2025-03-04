@@ -101,38 +101,6 @@ pub fn calculate_steps(
     (total_steps, new_offset)
 }
 
-// pub const CHECKPOINT_BITS: u64 = 16;
-pub const CHECKPOINT_BITS: u64 = 20;
-pub const CHECKPOINT_MASK: u64 = (1 << CHECKPOINT_BITS) - 1;
-pub fn is_checkpoint(state: Xs128pState) -> bool {
-    (state.0 & CHECKPOINT_MASK) == 0
-}
-
-pub fn is_checkpoint_bits(state: Xs128pState, bits: usize) -> bool {
-    let mask = (1 << bits) - 1;
-    (state.0 & mask) == 0
-}
-
-pub fn find_checkpoint(state: Xs128pState, offset: i32) -> (Xs128pState, i32, i32) {
-    find_checkpoint_bits(state, offset, 16)
-}
-
-pub fn find_checkpoint_bits(
-    state: Xs128pState,
-    offset: i32,
-    bits: usize,
-) -> (Xs128pState, i32, i32) {
-    let mut distance = 0;
-
-    let mut rng = Rng::new(state, offset);
-    while !is_checkpoint_bits(rng.state, bits) {
-        rng.step(-1);
-        // state = xs128p_rev(state);
-        distance += 1;
-    }
-    (rng.state, distance, rng.offset)
-}
-
 impl Rng {
     pub fn new(state: impl Into<Xs128pState>, offset: BlockOffset) -> Rng {
         Rng {
@@ -142,6 +110,9 @@ impl Rng {
         }
     }
 
+    // TODO Figure out why RustRover is showing a dead code error for a function
+    //   that's used in the module tests
+    #[allow(dead_code)]
     pub fn state_tuple(&self) -> (u64, u64, BlockOffset) {
         (self.state.0, self.state.1, self.offset)
     }
@@ -165,25 +136,6 @@ impl Rng {
         self.offset = new_offset;
     }
 
-    pub fn seek_prev_checkpoint(&mut self, bits: usize) -> usize {
-        self.step(-1);
-
-        let mut steps = 1;
-        while !is_checkpoint_bits(self.state, bits) {
-            self.step(-1);
-            steps += 1;
-        }
-        steps
-    }
-
-    pub fn seek_next_checkpoint(&mut self, bits: usize) {
-        self.step(1);
-
-        while !is_checkpoint_bits(self.state, bits) {
-            self.step(1);
-        }
-    }
-
     pub fn value(&self) -> f64 {
         if self.v10 {
             from_double_bits_v10(self.state.0, self.state.1)
@@ -191,7 +143,7 @@ impl Rng {
             from_double_bits(self.state.0 >> 12)
         }
     }
-    
+
     pub fn next_value(&self) -> f64 {
         let mut dup = self.clone();
         dup.next()
