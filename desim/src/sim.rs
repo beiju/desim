@@ -86,8 +86,8 @@ pub enum HalfInning {
 }
 
 pub struct RunnerOnBase {
-    base: i64,
-    runner_id: Uuid,
+    pub base: i64,
+    pub runner_id: Uuid,
 }
 
 // `Game` is data that's true for the whole game, while GameState may change per tick

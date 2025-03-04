@@ -330,6 +330,34 @@ fn rolls_for_hit(
         Some(false),
     ));
 
+    for (base, runner) in game.runners_at_start() {
+        // TODO Support Hits other than Singles
+        let base_after_automatic_advance = base + 1;
+        let base_at_end = game.runners_at_end.iter()
+            .find(|r| r.runner_id == runner.player.id)
+            .map(|r| r.base)
+            // If the runner isn't in runners_at_end, assume they scored. For
+            // now I'm notating that as 4.
+            .unwrap_or(4);
+
+        let advanced = if base_at_end == base_after_automatic_advance  {
+            false
+        } else if base_at_end == base_after_automatic_advance + 1 {
+            true
+        } else if base_at_end > base_after_automatic_advance {
+            panic!("Batter advanced too much! Was on {base_after_automatic_advance} after the automatic advance, then {base_at_end} after the optional advance!")
+        } else {
+            panic!("Batter advanced a negative amount! Was on {base_after_automatic_advance} after the automatic advance, then {base_at_end} after the optional advance!");
+        };
+
+        rolls.push(RollData::for_threshold(
+            rng,
+            RollPurpose::Advance((base_after_automatic_advance, advanced)),
+            Some(th.advance_on_hit(&runner, &fielder)),
+            Some(advanced),
+        ));
+    }
+
     rolls
 }
 

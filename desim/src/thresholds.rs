@@ -299,4 +299,14 @@ impl Thresholds {
 
         0.05 + 0.2 * batter_ground_friction - 0.04 * pitcher_overpowerment - 0.06 * fielder_chasiness + 0.1 * ballpark_sum
     }
+    
+    pub fn advance_on_hit(&self, runner: &PlayerAtTick, fielder: &PlayerAtTick) -> f64 {
+        // Not vibed
+        let fielder_tenaciousness = fielder.attribute(Attribute::Tenaciousness).multiplied();
+
+        // Not vibed or multiplied
+        let runner_continuation = runner.attribute(Attribute::Continuation).base_value;
+        
+        (0.7 - fielder_tenaciousness + 0.6 * runner_continuation).min(0.95).max(0.01)
+    }
 }
