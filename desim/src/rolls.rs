@@ -8,7 +8,7 @@ use crate::update_parser::{ParsedUpdate, ParsedUpdateData};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum RollPurpose {
-    PartyTime,
+    Party,
     StealFielder,
     MildPitch,
     InStrikeZone,
@@ -34,8 +34,8 @@ pub enum RollPurpose {
 impl Display for RollPurpose {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            RollPurpose::PartyTime => {
-                write!(f, "Was there a party?")
+            RollPurpose::Party => {
+                write!(f, "Did the party roll pass?")
             }
             RollPurpose::StealFielder => {
                 write!(f, "Choose the steal fielder")
@@ -152,14 +152,35 @@ impl RollData {
     }
 }
 
-fn standard_rolls(rng: &mut Rng, game: &GameAtTick) -> Vec<RollData> {
+fn party_rolls(rng: &mut Rng, th: &Thresholds) -> Vec<RollData> {
     let mut rolls = Vec::new();
-    rolls.push(RollData::for_threshold(
+
+    // Party rolls every tick, regardless of party time
+    let party_threshold = th.party();
+    let party_roll = RollData::for_threshold(
         rng,
-        RollPurpose::PartyTime,
-        None,
-        None,
-    ));
+        RollPurpose::Party,
+        Some(party_threshold),
+        None, // I'll fill this in when I encounter a party
+    );
+    let party_roll_passed = party_roll.roll < party_threshold;
+    rolls.push(party_roll);
+
+    // If party roll passed, a team is chosen
+    if party_roll_passed {
+        rolls.push(RollData::for_choice(
+            rng,
+            RollPurpose::PartyTargetTeam,
+            2,
+            None,
+            None,
+        ))
+    }
+
+    rolls
+}
+fn standard_rolls(rng: &mut Rng, th: &Thresholds, game: &GameAtTick) -> Vec<RollData> {
+    let mut rolls = party_rolls(rng, th);
 
     let _steal_fielder =
         choose_fielder_for_purpose(rng, game, &mut rolls, RollPurpose::StealFielder);
@@ -182,13 +203,13 @@ fn rolls_for_pitch(
     game: &GameAtTick,
     in_strike_zone: Option<bool>,
 ) -> Vec<RollData> {
-    let mut rolls = standard_rolls(rng, game);
+    let mut rolls = standard_rolls(rng, th, game);
 
     rolls.push(RollData::for_threshold(
         rng,
         RollPurpose::MildPitch,
-        None,
-        None,
+        Some(th.mild_pitch()),
+        Some(false), // I'll fill this in when I encounter a mild pitch
     ));
 
     rolls.push(RollData::for_threshold(

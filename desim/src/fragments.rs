@@ -30,7 +30,7 @@ pub struct CheckRoll {
     #[serde(rename = "label", deserialize_with = "deserialize_roll_purpose")]
     pub purpose: RollPurpose,
     pub roll: f64,
-    // This is not public because for some `RollPurpose`s, my definition of 
+    // This is not public because for some `RollPurpose`s, my definition of
     // "passed" is different from resim's. Use the `.passed()` function instead.
     passed: Option<bool>,
     pub threshold: Option<f64>,
@@ -38,7 +38,7 @@ pub struct CheckRoll {
 
 impl CheckRoll {
     pub fn passed(&self) -> Option<bool> {
-        // My definition of "passed" is whether the value was below the 
+        // My definition of "passed" is whether the value was below the
         // threshold. Resim's definition of "passed" is more colloquial. For
         // fouls, these definitions are opposite, so we reverse the value.
         if self.purpose == RollPurpose::FairOrFoul {
@@ -82,7 +82,7 @@ fn parse_anything(input: &str) -> ParserResult<&str> {
 
 fn parse_roll_purpose(input: &str) -> ParserResult<RollPurpose> {
     alt((
-        tag("party time").map(|_| RollPurpose::PartyTime),
+        tag("party time").map(|_| RollPurpose::Party),
         tag("steal fielder").map(|_| RollPurpose::StealFielder),
         tag("mild").map(|_| RollPurpose::MildPitch),
         tag("strike").map(|_| RollPurpose::InStrikeZone),

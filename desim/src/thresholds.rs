@@ -33,14 +33,14 @@ impl Thresholds {
             .attribute(Attribute::Ruthlessness)
             .multiplied();
 
-        let musclitude = game
-            .batter()
-            .attribute(Attribute::Musclitude)
-            .multiplied();
+        let musclitude = game.batter().attribute(Attribute::Musclitude).multiplied();
 
         let forwardness = 0.5; // Stadium attributes default to 0.5 when there is no stadium
 
-        let threshold = 0.2 + 0.35 * (ruthlessness * (1.0 + 0.2 * pitcher_vibes)) + 0.2 * forwardness + 0.1 * musclitude;
+        let threshold = 0.2
+            + 0.35 * (ruthlessness * (1.0 + 0.2 * pitcher_vibes))
+            + 0.2 * forwardness
+            + 0.1 * musclitude;
 
         threshold.min(0.9)
     }
@@ -124,7 +124,10 @@ impl Thresholds {
         0.25 + 0.1 * forwardness - 0.1 * obtuseness + 0.1 * batter_sum
     }
 
-    #[allow(dead_code)] // TODO Remove once this is called for real
+    pub fn party(&self) -> f64 {
+        0.0055
+    }
+
     pub fn mild_pitch(&self) -> f64 {
         // Mysticism was always treated as 0.5 in s12
         let mysticism = 0.5;
@@ -136,12 +139,14 @@ impl Thresholds {
         let pitcher_vibes = game.pitcher().vibes;
         let fielder_vibes = fielder.vibes;
 
-        let batter_thwackability = game.batter()
+        let batter_thwackability = game
+            .batter()
             .attribute(Attribute::Thwackability)
             .multiplied()
             .vibed(batter_vibes);
 
-        let pitcher_unthwackability = game.pitcher()
+        let pitcher_unthwackability = game
+            .pitcher()
             .attribute(Attribute::Unthwackability)
             .multiplied()
             .vibed(pitcher_vibes);
@@ -157,8 +162,7 @@ impl Thresholds {
         let stadium_viscosity = 0.5;
         let stadium_forwardness = 0.5;
 
-        0.315
-            + 0.1 * batter_thwackability
+        0.315 + 0.1 * batter_thwackability
             - 0.08 * pitcher_unthwackability
             - 0.07 * fielder_omniscience
             + 0.0145 * (stadium_grandiosity - 0.5)
@@ -170,7 +174,8 @@ impl Thresholds {
 
     pub fn fly(&self, game: &sim::GameAtTick) -> f64 {
         // No vibes, and inverse multiplied for some reason
-        let batter_buoyancy = game.batter()
+        let batter_buoyancy = game
+            .batter()
             .attribute(Attribute::Buoyancy)
             .inverse_multiplied();
 
@@ -178,16 +183,12 @@ impl Thresholds {
         // Presumably it was supposed to use the pitcher's suppression as well
         // but TGB made a typo.
         // Also, no vibes
-        let suppression = game.batter()
-            .attribute(Attribute::Suppression)
-            .multiplied();
+        let suppression = game.batter().attribute(Attribute::Suppression).multiplied();
 
         let stadium_ominousness = 0.5;
 
-        let threshold = 0.18
-            + 0.3 * batter_buoyancy
-            - 0.16 * suppression
-            - 0.1 * (stadium_ominousness - 0.5);
+        let threshold =
+            0.18 + 0.3 * batter_buoyancy - 0.16 * suppression - 0.1 * (stadium_ominousness - 0.5);
         threshold.max(0.01)
     }
 
@@ -254,12 +255,12 @@ impl Thresholds {
         let stadium_elongation = 0.5;
         let stadium_viscosity = 0.5;
         let stadium_ominousness = 0.5;
-        let ballpark_sum = 0.027 * (stadium_forwardness - 0.5)
-            - 0.015 * (stadium_elongation - 0.5)
+        let ballpark_sum = 0.027 * (stadium_forwardness - 0.5) - 0.015 * (stadium_elongation - 0.5)
             + 0.01 * (stadium_ominousness - 0.5)
             + 0.008 * (stadium_viscosity - 0.5);
 
-        0.17 + 0.2 * batter_musclitude - 0.04 * pitcher_overpowerment - 0.1 * fielder_chasiness + ballpark_sum
+        0.17 + 0.2 * batter_musclitude - 0.04 * pitcher_overpowerment - 0.1 * fielder_chasiness
+            + ballpark_sum
     }
 
     pub fn triple(&self, game: &sim::GameAtTick, fielder: &PlayerAtTick) -> f64 {
@@ -289,24 +290,27 @@ impl Thresholds {
         let stadium_obtuseness = 0.5;
         let stadium_viscosity = 0.5;
         let stadium_ominousness = 0.5;
-        let ballpark_sum = (
-            3.0 * (stadium_forwardness - 0.5)
-            - 5.0 * (stadium_grandiosity - 0.5)
+        let ballpark_sum = (3.0 * (stadium_forwardness - 0.5) - 5.0 * (stadium_grandiosity - 0.5)
             + 5.0 * (stadium_obtuseness - 0.5)
             + 1.0 * (stadium_viscosity - 0.5)
-            + 1.0 * (stadium_ominousness - 0.5)
-        ) / 15.0;
+            + 1.0 * (stadium_ominousness - 0.5))
+            / 15.0;
 
-        0.05 + 0.2 * batter_ground_friction - 0.04 * pitcher_overpowerment - 0.06 * fielder_chasiness + 0.1 * ballpark_sum
+        0.05 + 0.2 * batter_ground_friction
+            - 0.04 * pitcher_overpowerment
+            - 0.06 * fielder_chasiness
+            + 0.1 * ballpark_sum
     }
-    
+
     pub fn advance_on_hit(&self, runner: &PlayerAtTick, fielder: &PlayerAtTick) -> f64 {
         // Not vibed
         let fielder_tenaciousness = fielder.attribute(Attribute::Tenaciousness).multiplied();
 
         // Not vibed or multiplied
         let runner_continuation = runner.attribute(Attribute::Continuation).base_value;
-        
-        (0.7 - fielder_tenaciousness + 0.6 * runner_continuation).min(0.95).max(0.01)
+
+        (0.7 - fielder_tenaciousness + 0.6 * runner_continuation)
+            .min(0.95)
+            .max(0.01)
     }
 }
