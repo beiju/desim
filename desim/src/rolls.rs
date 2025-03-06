@@ -346,7 +346,7 @@ fn rolls_for_basic_out(
     rolls_for_out(rng, th, game, is_flyout, false)
 }
 
-fn rolls_for_hit(rng: &mut Rng, th: &Thresholds, game: &GameAtTick) -> Vec<RollData> {
+fn rolls_for_hit(rng: &mut Rng, th: &Thresholds, game: &GameAtTick, hit_bases: i64, mut scored: Vec<&str>) -> Vec<RollData> {
     let mut rolls = rolls_for_fair(rng, th, game, true);
 
     rolls.push(RollData::for_threshold(
@@ -362,7 +362,7 @@ fn rolls_for_hit(rng: &mut Rng, th: &Thresholds, game: &GameAtTick) -> Vec<RollD
         rng,
         RollPurpose::Double(fielder.player.name.clone()),
         Some(th.double(game, &fielder)),
-        Some(false),
+        Some(hit_bases == 2), // Not sure if this is "double or higher" or "double, exactly"
     ));
 
     rolls.push(RollData::for_threshold(
@@ -372,27 +372,59 @@ fn rolls_for_hit(rng: &mut Rng, th: &Thresholds, game: &GameAtTick) -> Vec<RollD
         Some(false),
     ));
 
+    // It's more efficient to pop the last element
+    scored.reverse();
+
+    println!("runners at start:");
     for (base, runner) in game.runners_at_start() {
-        // TODO Support Hits other than Singles
-        let base_after_automatic_advance = base + 1;
+        println!("    {}: {}", base, runner.player.name);
+    }
+
+    let mut prev_occupied_base = None;
+    // Note this list is already in descending order of occupied base
+    for (base, runner) in game.runners_at_start() {
+        let base_after_automatic_advance = base + hit_bases;
+
+        if let Some(occupied_base) = prev_occupied_base {
+            assert!(occupied_base > base_after_automatic_advance,
+                    "The base this player automatically advanced to was occupied");
+            if base_after_automatic_advance + 1 == occupied_base {
+                // Then the batter is not eligible to advance
+                prev_occupied_base = Some(base_after_automatic_advance);
+                println!("{} not eligible because {} is occupied", runner.player.name, occupied_base);
+                continue;
+            }
+        }
+
         let base_at_end = game
             .runners_at_end
             .iter()
             .find(|r| r.runner_id == runner.player.id)
-            .map(|r| r.base)
-            // If the runner isn't in runners_at_end, assume they scored. For
-            // now I'm notating that as 4.
-            .unwrap_or(4);
-
-        let advanced = if base_at_end == base_after_automatic_advance {
-            false
-        } else if base_at_end == base_after_automatic_advance + 1 {
-            true
-        } else if base_at_end > base_after_automatic_advance {
-            panic!("Batter advanced too much! Was on {base_after_automatic_advance} after the automatic advance, then {base_at_end} after the optional advance!")
+            .map(|r| r.base);
+        
+        let advanced = if let Some(base_at_end) = base_at_end {
+            if base_at_end == base_after_automatic_advance {
+                false
+            } else if base_at_end == base_after_automatic_advance + 1 {
+                true
+            } else if base_at_end > base_after_automatic_advance {
+                panic!("Batter advanced too much! Was on {base_after_automatic_advance} after the automatic advance, then {base_at_end} after the optional advance!")
+            } else {
+                panic!("Batter advanced a negative amount! Was on {base_after_automatic_advance} after the automatic advance, then {base_at_end} after the optional advance!");
+            }
         } else {
-            panic!("Batter advanced a negative amount! Was on {base_after_automatic_advance} after the automatic advance, then {base_at_end} after the optional advance!");
+            // Assume the player scored
+            if base_after_automatic_advance >= 3 {
+                // Then they scored from the automatic advance and no roll
+                // is necessary
+                continue;
+            } else {
+                // Then they scored off the optional advance 
+                assert_eq!(base_after_automatic_advance + 1, 3);
+                true
+            }
         };
+        println!("{} advanced: {}", runner.player.name, advanced);
 
         rolls.push(RollData::for_threshold(
             rng,
@@ -400,6 +432,10 @@ fn rolls_for_hit(rng: &mut Rng, th: &Thresholds, game: &GameAtTick) -> Vec<RollD
             Some(th.advance_on_hit(&runner, &fielder)),
             Some(advanced),
         ));
+
+        if let Some(base) = base_at_end {
+            prev_occupied_base = Some(base);
+        }
     }
 
     rolls
@@ -437,7 +473,7 @@ fn choose_fielder_for_purpose<'a>(
 
 pub fn rolls_for_update(
     rng: &mut Rng,
-    update: &ParsedUpdate,
+    update: ParsedUpdate,
     th: &Thresholds,
     game: &GameAtTick,
 ) -> Vec<RollData> {
@@ -459,7 +495,7 @@ pub fn rolls_for_update(
         ParsedUpdateData::GroundOut => rolls_for_basic_out(rng, th, game, false),
         ParsedUpdateData::Flyout => rolls_for_basic_out(rng, th, game, true),
         ParsedUpdateData::InningEnd => vec![],
-        ParsedUpdateData::Hit => rolls_for_hit(rng, th, game),
+        ParsedUpdateData::Hit { bases, scored } => rolls_for_hit(rng, th, game, bases, scored),
         ParsedUpdateData::DoublePlay => rolls_for_double_play(rng, th, game),
     }
 }

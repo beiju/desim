@@ -476,7 +476,7 @@ fn run_game_tick(
     );
     match update_parser::parse_update(&update) {
         Ok(parsed_update) => {
-            let rolls = rolls_for_update(rng, &parsed_update, th, &game_at_tick)
+            let rolls = rolls_for_update(rng, parsed_update, th, &game_at_tick)
                 .into_iter()
                 .map(|roll_data| {
                     if let Some(check_rolls) = check_rolls {

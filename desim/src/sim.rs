@@ -162,9 +162,9 @@ impl<'a> GameAtTick<'a> {
             vibes: compute_vibes(player, self.day),
         }
     }
-
-    pub fn runners_at_start(&self) -> impl Iterator<Item = (i64, PlayerAtTick<'_>)> {
-        self.runners_at_start.iter().flat_map(move |on_base| {
+    
+    fn runners_helper<'s>(&'s self, it: impl IntoIterator<Item = &'s RunnerOnBase>) -> impl Iterator<Item = (i64, PlayerAtTick<'s>)> {
+        it.into_iter().flat_map(move |on_base| {
             let player = &self
                 .batting_team()
                 .lineup
@@ -179,6 +179,14 @@ impl<'a> GameAtTick<'a> {
 
             Some((on_base.base, player_at_tick))
         })
+    }
+
+    pub fn runners_at_start(&self) -> impl Iterator<Item = (i64, PlayerAtTick<'_>)> {
+        self.runners_helper(&self.runners_at_start)
+    }
+
+    pub fn runners_at_start_rev(&self) -> impl Iterator<Item = (i64, PlayerAtTick<'_>)> {
+        self.runners_helper(self.runners_at_start.iter().rev())
     }
 
     fn batter_match_error(&self, update: &ChroniclerGameUpdate) -> Option<String> {

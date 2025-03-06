@@ -4,14 +4,15 @@ use nom::branch::alt;
 use nom::bytes::complete::tag;
 use nom::character::complete::digit1;
 use nom::combinator::eof;
+use nom::multi::many0;
 use nom::Parser;
 use thiserror::Error;
 
-pub struct ParsedUpdate {
-    pub data: ParsedUpdateData,
+pub struct ParsedUpdate<'u> {
+    pub data: ParsedUpdateData<'u>,
 }
 
-pub enum ParsedUpdateData {
+pub enum ParsedUpdateData<'u> {
     Empty,
     PlayBall,
     InningTurnover,
@@ -25,7 +26,10 @@ pub enum ParsedUpdateData {
     GroundOut,
     Flyout,
     InningEnd,
-    Hit,
+    Hit { 
+        bases: i64, 
+        scored: Vec<&'u str>,
+    },
     DoublePlay,
 }
 
@@ -155,11 +159,27 @@ fn parse_inning_end(input: &str) -> ParserResult<ParsedUpdateData> {
     Ok((input, ParsedUpdateData::InningEnd))
 }
 
-fn parse_hit(input: &str) -> ParserResult<ParsedUpdateData> {
-    // TODO: Other kinds of hit
-    let (input, _batter_name) = parse_terminated(" hits a Single!").parse(input)?;
+fn parse_score(input: &str) -> ParserResult<&str> {
+    let (input, _) = tag("\n").parse(input)?;
+    let (input, name) = parse_terminated(" scores!").parse(input)?;
+    
+    Ok((input, name))
+}
 
-    Ok((input, ParsedUpdateData::Hit))
+fn parse_hit(input: &str) -> ParserResult<ParsedUpdateData> {
+    let (input, _batter_name) = parse_terminated(" hits a ").parse(input)?;
+    let (input, bases) = alt((
+        tag("Single").map(|_| 1),
+        tag("Double").map(|_| 2),
+        tag("Triple").map(|_| 3),
+        tag("Quadruple").map(|_| 4), // Only with fifth base
+    )).parse(input)?;
+    
+    let (input, _) = tag("!").parse(input)?;
+    
+    let (input, scored) = many0(parse_score).parse(input)?;
+
+    Ok((input, ParsedUpdateData::Hit { bases, scored }))
 }
 
 fn parse_double_play(input: &str) -> ParserResult<ParsedUpdateData> {
